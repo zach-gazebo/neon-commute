@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Neon Commute</title>
+<meta name="description" content="Personal commute timer: routes, checkpoints, legs, MPG and fuel cost. All data stays on this device.">
+<meta name="theme-color" content="#05050A">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Neon Commute">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305050A'/%3E%3Cpath d='M12 48 C24 40 22 22 36 20 S52 14 54 10' stroke='%2300E5FF' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='36' cy='20' r='5' fill='%23FF2BD6'/%3E%3Ccircle cx='12' cy='48' r='5' fill='%23B6FF00'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#05050A;--panel:#0B0B15;--panel2:#10101C;--line:#1E1E2A;--line2:#2A2A3C;--muted:#8A8AA0;--text:#ECECF8;
+  --blue:#00E5FF;--pink:#FF2BD6;--lime:#B6FF00;--orange:#FF8A00;--violet:#9D4DFF;--yellow:#FFE600;--acc:#00E5FF;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --round:ui-rounded,"SF Pro Rounded","SF Pro Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--round);font-size:16px;overscroll-behavior:none}
+body{background-color:var(--bg);
+  background-image:radial-gradient(ellipse at 50% 30%,rgba(0,229,255,.05),transparent 60%),
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:100% 100%,32px 32px,32px 32px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--blue)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#top{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:calc(var(--sat) + 8px) calc(var(--sar) + 14px) 8px calc(var(--sal) + 14px);background:rgba(5,5,10,.92);border-bottom:1px solid var(--line);z-index:1200}
+#top .brand{font-weight:800;letter-spacing:.06em;font-size:17px;color:#fff;text-shadow:0 0 8px var(--pink),0 0 18px rgba(255,43,214,.6)}
+#top .brand span{color:var(--blue);text-shadow:0 0 8px var(--blue),0 0 18px rgba(0,229,255,.6)}
+.chipbtn{border:1px solid var(--line2);background:var(--panel);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--muted);white-space:nowrap}
+.chipbtn.ok{color:var(--lime);border-color:rgba(182,255,0,.5);box-shadow:0 0 10px rgba(182,255,0,.2)}
+.chipbtn.warn{color:var(--orange);border-color:rgba(255,138,0,.5)}
+.chipbtn.bad{color:var(--pink);border-color:rgba(255,43,214,.5)}
+main{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;
+  padding:14px calc(var(--sar) + 14px) 28px calc(var(--sal) + 14px)}
+.view.active{display:block}
+#view-drive{padding:0;overflow:hidden}
+h1{font-size:26px;margin:4px 0 12px;color:#fff;text-shadow:0 0 10px var(--acc)}
+h2{font-size:20px;margin:0 0 10px}
+h3{font-size:15px;margin:0 0 10px;color:#fff;letter-spacing:.04em;text-transform:uppercase}
+.muted{color:var(--muted)} .small{font-size:13px}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:14px;margin:0 0 14px;box-shadow:0 0 0 1px rgba(255,255,255,.01),0 10px 30px rgba(0,0,0,.35)}
+.banner{border:1px solid rgba(255,230,0,.45);color:var(--yellow);background:rgba(255,230,0,.06);border-radius:14px;padding:10px 12px;font-size:13px;margin:0 0 12px}
+.banner.demo{border-color:rgba(157,77,255,.6);color:#CDB3FF;background:rgba(157,77,255,.08)}
+.badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 6px;border-radius:6px;margin-left:6px;vertical-align:middle;color:#CDB3FF;border:1px solid rgba(157,77,255,.7);box-shadow:0 0 8px rgba(157,77,255,.4)}
+/* buttons */
+.btn{border:1.5px solid var(--acc);background:rgba(0,229,255,.05);color:#fff;border-radius:14px;padding:11px 16px;min-height:46px;font-weight:700;box-shadow:0 0 10px rgba(0,229,255,.18)}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.35;box-shadow:none}
+.btn.sm{min-height:36px;padding:6px 12px;font-size:14px;border-radius:11px}
+.btn.big{min-height:64px;font-size:20px;border-radius:20px}
+.btn.primary{background:var(--lime);border-color:var(--lime);color:#05050A;box-shadow:0 0 14px var(--lime),0 0 30px rgba(182,255,0,.35)}
+.btn.pink{border-color:var(--pink);box-shadow:0 0 10px rgba(255,43,214,.3)}
+.btn.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,43,214,.06);box-shadow:0 0 10px rgba(255,43,214,.25)}
+.btn.ghost{border-color:var(--line2);box-shadow:none;background:transparent}
+.linkbtn{background:none;border:none;color:var(--blue);padding:4px;text-decoration:underline;text-underline-offset:3px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stack>*+*{margin-top:10px}
+.bigbtn{display:block;width:100%;min-height:88px;border:none;border-radius:44px;font:900 32px/1 var(--round);letter-spacing:.16em;transition:transform .1s}
+.bigbtn:active{transform:scale(.98)}
+.bigbtn.start{background:var(--lime);color:#05050A;box-shadow:0 0 16px var(--lime),0 0 16px var(--lime),0 0 44px rgba(182,255,0,.45)}
+.bigbtn.stop{background:var(--pink);color:#fff;text-shadow:0 0 6px rgba(0,0,0,.4);box-shadow:0 0 16px var(--pink),0 0 16px var(--pink),0 0 44px rgba(255,43,214,.5)}
+.bigbtn.resume{background:transparent;border:2px solid var(--yellow);color:var(--yellow);box-shadow:0 0 16px rgba(255,230,0,.4);font-size:22px}
+/* inputs */
+select,input[type=text],input[type=number],textarea{background:#08080F;border:1px solid var(--line2);border-radius:12px;padding:10px 12px;min-height:44px;color:#fff;outline:none;max-width:100%}
+select:focus,input:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 10px rgba(0,229,255,.3)}
+textarea{width:100%;min-height:70px;resize:vertical}
+label.field{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:none}
+.toggle input{appearance:none;-webkit-appearance:none;width:54px;height:32px;border-radius:16px;background:#1A1A26;border:1px solid var(--line2);position:relative;flex:none;transition:background .2s}
+.toggle input::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#8A8AA0;transition:transform .2s,background .2s}
+.toggle input:checked{background:rgba(182,255,0,.18);border-color:var(--lime);box-shadow:0 0 10px rgba(182,255,0,.35)}
+.toggle input:checked::after{transform:translateX(22px);background:var(--lime);box-shadow:0 0 8px var(--lime)}
+.chip{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--c,#888);box-shadow:0 0 6px var(--c,#888),0 0 12px var(--c,#888);flex:none}
+.glow{text-shadow:0 0 8px var(--acc),0 0 18px var(--acc)}
+/* drive */
+#driveMap{position:absolute;inset:0;background:var(--bg)}
+.nomap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--muted)}
+#recenter{position:absolute;right:calc(var(--sar) + 12px);top:12px;z-index:900;display:none;width:48px;height:48px;border-radius:50%;border:1.5px solid var(--blue);background:rgba(5,5,10,.85);color:var(--blue);font-size:22px;box-shadow:0 0 12px rgba(0,229,255,.5)}
+#recenter.show{display:block}
+#fileBanner{position:absolute;left:12px;right:70px;top:12px;z-index:900}
+.hud{position:absolute;left:calc(var(--sal) + 10px);right:calc(var(--sar) + 10px);bottom:10px;z-index:1000;background:rgba(7,7,14,.86);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line2);border-radius:26px;padding:12px;box-shadow:0 0 30px rgba(0,0,0,.6),0 0 22px rgba(0,229,255,.08)}
+.route-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.route-row select{flex:1;min-height:48px;font-weight:700}
+.timer{font:700 54px/1.05 var(--mono);font-variant-numeric:tabular-nums;text-align:center;color:#fff;text-shadow:0 0 8px var(--acc),0 0 22px var(--acc);margin:2px 0 4px}
+.legline{display:flex;justify-content:space-around;gap:8px;font-size:14px;color:var(--muted);margin-bottom:10px;text-align:center}
+.legline b{display:block;font:700 22px var(--mono);color:#fff;font-variant-numeric:tabular-nums}
+.cpbtn{width:100%;min-height:88px;margin-bottom:10px;border-radius:24px;border:2px solid var(--blue);background:rgba(0,229,255,.07);color:#fff;font:800 24px var(--round);letter-spacing:.06em;box-shadow:0 0 14px rgba(0,229,255,.35),inset 0 0 14px rgba(0,229,255,.12)}
+.cpbtn:disabled{opacity:.3}
+.cpbtn.flash{animation:flash .5s ease-out}
+@keyframes flash{0%{background:rgba(0,229,255,.6);box-shadow:0 0 40px var(--blue)}100%{background:rgba(0,229,255,.07)}}
+.hudnote{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+/* map markers */
+.dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.92) saturate(.55)}
+.leaflet-container{background:#05050A!important;font-family:var(--round)}
+.leaflet-control-attribution{background:rgba(5,5,10,.75)!important;color:#8A8AA0!important;font-size:10px}
+.leaflet-control-attribution a{color:#7FDFFF!important}
+.leaflet-bar a{background:#0B0B15!important;color:#fff!important;border-color:var(--line2)!important}
+.cp-icon,.me-icon{background:none;border:none}
+.cpm{position:relative;width:28px;height:28px}
+.cpm .dot{position:absolute;left:8px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c),0 0 16px var(--c)}
+.cpm .ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--c);animation:pulse 1.5s ease-out infinite}
+.cpm.fresh .dot{background:#fff;box-shadow:0 0 10px var(--c),0 0 24px var(--c),0 0 44px var(--c)}
+.cpm.fresh .ring{border-width:3px;animation-duration:.8s}
+.cpm.dim{opacity:.5}.cpm.dim .ring{animation:none;opacity:.5}
+.cpm.end .dot{border-radius:3px}
+@keyframes pulse{0%{transform:scale(.55);opacity:.95}100%{transform:scale(2.3);opacity:0}}
+.me{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--c,#00E5FF);box-shadow:0 0 10px var(--c,#00E5FF),0 0 22px var(--c,#00E5FF)}
+/* tabs */
+#tabs{display:flex;background:rgba(6,6,12,.96);border-top:1px solid var(--line);padding:0 var(--sar) var(--sab) var(--sal);z-index:1200}
+#tabs button{flex:1;min-height:58px;background:none;border:none;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.05em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+#tabs button i{font-style:normal;font-size:20px;line-height:1}
+#tabs button.on{color:var(--blue);text-shadow:0 0 8px var(--blue)}
+/* sheet */
+#sheetWrap{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.62);display:none;align-items:flex-end;justify-content:center}
+#sheetWrap.open{display:flex}
+.sheet{width:100%;max-width:640px;max-height:94%;overflow-y:auto;background:#090912;border:1px solid var(--line2);border-bottom:none;border-radius:26px 26px 0 0;
+  padding:18px calc(var(--sar) + 16px) calc(var(--sab) + 18px) calc(var(--sal) + 16px);box-shadow:0 -12px 50px rgba(0,229,255,.14)}
+.sheet-title{text-align:center;color:#fff}
+.mpg-display{text-align:center;font:800 64px/1.1 var(--mono);color:#fff;text-shadow:0 0 10px var(--lime),0 0 26px var(--lime);min-height:72px}
+.hint{text-align:center;color:var(--muted);font-size:13px;margin-bottom:12px}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.key{min-height:68px;border-radius:18px;border:1px solid var(--line2);background:#0E0E1A;font:700 30px var(--mono);color:#fff}
+.key:active{border-color:var(--lime);box-shadow:0 0 14px rgba(182,255,0,.5)}
+.price-row{text-align:center;margin-bottom:14px;color:var(--muted)}
+.price-row input{width:110px;text-align:center}
+.sum-total{text-align:center;font:800 56px/1.1 var(--mono);color:#fff;text-shadow:0 0 10px var(--acc),0 0 26px var(--acc)}
+.sum-route{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;margin:4px 0}
+.cmpline{text-align:center;color:var(--muted);font-size:14px;margin-bottom:10px}
+.pos{color:var(--pink)}.neg{color:var(--lime)}
+.fuelline{text-align:center;font:700 18px var(--mono);color:#fff;margin:10px 0;text-shadow:0 0 8px rgba(182,255,0,.6)}
+table.legs{width:100%;border-collapse:collapse;font-size:14px}
+table.legs th{color:var(--muted);font-weight:600;text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+table.legs td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.legs td.t{font-family:var(--mono);text-align:right;white-space:nowrap}
+table.legs th.t{text-align:right}
+/* history */
+.filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.filters select{width:100%;min-width:0;font-size:14px;padding:8px}
+.trip-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:8px}
+.trip-row:active{border-color:var(--acc)}
+.tr-main{flex:1;min-width:0}.tr-main b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tr-right{text-align:right}.tr-right .mono{font-size:20px;font-weight:700}
+.empty{text-align:center;color:var(--muted);padding:40px 16px}
+/* detail overlay */
+#detail{position:fixed;inset:0;z-index:1500;background:var(--bg);display:none;flex-direction:column}
+#detail.open{display:flex}
+#detail .dbar{display:flex;align-items:center;gap:10px;padding:calc(var(--sat) + 8px) calc(var(--sar) + 12px) 8px calc(var(--sal) + 12px);border-bottom:1px solid var(--line)}
+#detailBody{flex:1;overflow-y:auto;padding:12px calc(var(--sar) + 14px) calc(var(--sab) + 28px) calc(var(--sal) + 14px)}
+.mini-map{height:300px;border-radius:18px;overflow:hidden;border:1px solid var(--line2);margin-bottom:10px;box-shadow:0 0 18px rgba(0,229,255,.1)}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv div{background:#08080F;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.kv small{display:block;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+.kv b{font:700 18px var(--mono)}
+/* compare */
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.seg button{border:1px solid var(--line2);background:var(--panel);border-radius:999px;padding:8px 14px;min-height:40px;color:var(--muted);font-weight:700}
+.seg button.on{border-color:var(--blue);color:#fff;box-shadow:0 0 10px rgba(0,229,255,.4)}
+.chart-box{position:relative;height:250px}
+.chart-box.tall{height:300px}
+.card select.full{width:100%;margin-bottom:10px}
+.combo-row{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.combo-row:last-child{border-bottom:none}
+/* settings */
+.route-item,.cp-item{border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px;background:#08080F}
+.route-item input[type=text],.cp-item input[type=text]{width:100%}
+.swatches{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
+.sw-btn{width:34px;height:34px;border-radius:50%;border:2px solid transparent;background:var(--c);box-shadow:0 0 8px var(--c)}
+.sw-btn.on{border-color:#fff;box-shadow:0 0 0 2px var(--bg) inset,0 0 14px var(--c)}
+input[type=color]{width:38px;height:34px;border:1px solid var(--line2);border-radius:10px;background:none;padding:2px}
+/* toast */
+#toast{position:fixed;left:50%;top:calc(var(--sat) + 58px);transform:translateX(-50%) translateY(-20px);z-index:3000;opacity:0;pointer-events:none;
+  background:#0C0C18;border:1px solid var(--blue);border-radius:16px;padding:12px 16px;max-width:92vw;box-shadow:0 0 20px rgba(0,229,255,.35);display:flex;align-items:center;gap:12px;transition:opacity .2s,transform .2s;font-size:15px}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast button{pointer-events:auto}
+#toast.warn{border-color:var(--orange);box-shadow:0 0 20px rgba(255,138,0,.35)}
+@media (min-width:760px){.hud{left:auto;right:16px;width:420px}}
+@media (prefers-reduced-motion:reduce){
+  .cpm .ring{animation:none!important;opacity:.6;transform:scale(1.4)}
+  *,*::before,*::after{transition:none!important;animation-duration:0s!important}
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand">NEON<span>COMMUTE</span></div>
+    <button id="gpsChip" class="chipbtn" type="button" title="Tap to start GPS">GPS off</button>
+  </header>
+  <main>
+    <section id="view-drive" class="view active" aria-label="Drive">
+      <div id="driveMap"></div>
+      <div id="fileBanner" class="banner" hidden></div>
+      <button id="recenter" type="button" aria-label="Recenter map">◎</button>
+      <div class="hud" id="hud">
+        <div class="route-row"><span class="chip" id="routeChip"></span><select id="routeSelect" aria-label="Route"></select></div>
+        <div id="tripStats" hidden>
+          <div class="timer" id="timer">0:00</div>
+          <div class="legline">
+            <div>Leg <span id="legNo">1</span><b id="curLeg">0:00</b></div>
+            <div>Last leg<b id="lastLeg">—</b></div>
+            <div>Distance<b id="distNow">0.0</b></div>
+          </div>
+          <button id="cpBtn" class="cpbtn" type="button">+ Checkpoint</button>
+        </div>
+        <button id="startStop" class="bigbtn start" type="button">START</button>
+        <div class="hudnote" id="hudNote"></div>
+      </div>
+    </section>
+    <section id="view-history" class="view" aria-label="History"></section>
+    <section id="view-compare" class="view" aria-label="Compare"></section>
+    <section id="view-settings" class="view" aria-label="Settings"></section>
+  </main>
+  <nav id="tabs">
+    <button type="button" data-tab="drive" class="on"><i>◉</i>Drive</button>
+    <button type="button" data-tab="history"><i>☰</i>History</button>
+    <button type="button" data-tab="compare"><i>▮▮</i>Compare</button>
+    <button type="button" data-tab="settings"><i>⚙</i>Settings</button>
+  </nav>
+</div>
+<div id="detail" aria-label="Trip detail">
+  <div class="dbar"><button id="detailBack" class="btn sm ghost" type="button">‹ Back</button><b id="detailTitle">Trip</b></div>
+  <div id="detailBody"></div>
+</div>
+<div id="sheetWrap"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ================= constants & utils ================= */
+const LS_DB = 'neonCommute.db.v1';
+const LS_ACTIVE = 'neonCommute.active.v1';
+const PALETTE = ['#00E5FF', '#FF2BD6', '#B6FF00', '#FF8A00', '#9D4DFF', '#FFE600'];
+const M_PER_MI = 1609.344;
+const UNASSIGNED = { id: '', name: 'Decide later', color: '#C8C8DA' };
+const REUSE_RADIUS_M = 150;       // "+ Checkpoint" reuses a saved checkpoint within this distance
+const MAX_ACC_M = 50;             // drop fixes worse than this
+const THIN_DIST_M = 25, THIN_MS = 5000; // keep a path point at most every 5 s and only after moving 25 m
+const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const hasL = () => typeof window.L !== 'undefined';
+const hasChart = () => typeof window.Chart !== 'undefined';
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const uid = (p = '') => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const r5 = x => Math.round(x * 1e5) / 1e5;
+function hav(a, b) {
+  const R = 6371000, k = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * k, dLng = (b.lng - a.lng) * k;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * k) * Math.cos(b.lat * k) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+const P = p => ({ lat: p[1], lng: p[2] });          // path point [t, lat, lng] -> {lat,lng}
+function fmtDur(ms) {
+  if (ms == null || !isFinite(ms)) return '—';
+  const neg = ms < 0; let s = Math.round(Math.abs(ms) / 1000);
+  const h = Math.floor(s / 3600); s -= h * 3600; const m = Math.floor(s / 60); s -= m * 60;
+  const ss = String(s).padStart(2, '0');
+  return (neg ? '-' : '') + (h ? h + ':' + String(m).padStart(2, '0') + ':' + ss : m + ':' + ss);
+}
+const fmtDelta = ms => (ms >= 0 ? '+' : '−') + fmtDur(Math.abs(ms));
+const fmtMin = min => fmtDur(min * 60000);
+const money = v => (v == null || !isFinite(v)) ? '—' : '$' + v.toFixed(2);
+function fmtDist(m) {
+  if (m == null) return '—';
+  return db.settings.units === 'km' ? (m / 1000).toFixed(1) + ' km' : (m / M_PER_MI).toFixed(1) + ' mi';
+}
+const fmtDate = t => new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtTime = t => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const minOf = a => a.length ? Math.min(...a) : null;
+const dur = t => t.endedAt - t.startedAt;
+function haptic(ms = 15) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* iOS has no vibrate API */ } }
+
+/* ================= storage ================= */
+function defaultDb() {
+  const now = Date.now();
+  return {
+    version: 1,
+    settings: { gasPrice: 5.29, mpgPrompt: true, autoHit: false, autoRadius: 100, wakeLock: true, units: 'mi', lastRouteId: 'r_a' },
+    routes: [
+      { id: 'r_a', name: 'Freeway A', color: '#00E5FF', archived: false, createdAt: now },
+      { id: 'r_b', name: 'Freeway B', color: '#FF2BD6', archived: false, createdAt: now },
+      { id: 'r_s', name: 'Surface Streets', color: '#B6FF00', archived: false, createdAt: now }
+    ],
+    checkpoints: [],
+    trips: []
+  };
+}
+let storageBroken = false;
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { storageBroken = true; return null; } }
+function lsSet(k, v) {
+  try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; }
+  catch (e) { quotaWarn(e); return false; }
+}
+let lastQuotaWarn = 0;
+function quotaWarn(e) {
+  const isQuota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014 || /quota/i.test(e.message || ''));
+  if (Date.now() - lastQuotaWarn < 8000) return;
+  lastQuotaWarn = Date.now();
+  toast(isQuota
+    ? '⚠ Storage is full. Export a JSON backup (Settings), then delete demo or old trips.'
+    : '⚠ Couldn\'t save to browser storage (' + ((e && e.name) || 'error') + '). Data may not persist.', { ms: 9000, warn: true });
+}
+function loadDb() {
+  const d = defaultDb();
+  const raw = lsGet(LS_DB);
+  if (!raw) return d;
+  try {
+    const x = JSON.parse(raw);
+    return {
+      version: 1,
+      settings: Object.assign(d.settings, x.settings || {}),
+      routes: Array.isArray(x.routes) ? x.routes : d.routes,
+      checkpoints: Array.isArray(x.checkpoints) ? x.checkpoints : [],
+      trips: Array.isArray(x.trips) ? x.trips : []
+    };
+  } catch (e) {
+    lsSet(LS_DB + '.corrupt', raw);
+    return d;
+  }
+}
+const persist = () => lsSet(LS_DB, JSON.stringify(db));
+let lastActivePersist = 0;
+function persistActive() { lastActivePersist = Date.now(); return lsSet(LS_ACTIVE, active ? JSON.stringify(active) : null); }
+
+let db = loadDb();
+let active = null;
+try { active = JSON.parse(lsGet(LS_ACTIVE) || 'null'); } catch (e) { active = null; }
+if (active && (!active.startedAt || !Array.isArray(active.hits))) active = null;
+
+/* ================= model helpers ================= */
+const routeById = id => db.routes.find(r => r.id === id) || null;
+const routeOf = t => routeById(t.routeId) || UNASSIGNED;
+const cpById = id => db.checkpoints.find(c => c.id === id) || null;
+const ptName = k => k === 'S' ? 'Start' : k === 'E' ? 'End' : ((cpById(k) || {}).name || 'Deleted checkpoint');
+const segLabel = seg => { const [a, b] = seg.split('>'); return ptName(a) + ' → ' + ptName(b); };
+function tripLegs(t) {
+  const end = t.endedAt || Date.now();
+  const pts = [{ k: 'S', t: t.startedAt }]
+    .concat(t.hits.slice().sort((a, b) => a.t - b.t).map(h => ({ k: h.cp, t: h.t })))
+    .concat([{ k: 'E', t: end }]);
+  const legs = [];
+  for (let i = 1; i < pts.length; i++) {
+    legs.push({ from: pts[i - 1].k, to: pts[i].k, seg: pts[i - 1].k + '>' + pts[i].k, start: pts[i - 1].t, end: pts[i].t, dur: pts[i].t - pts[i - 1].t });
+  }
+  return legs;
+}
+function fuel(t) {
+  const miles = (t.distanceM || 0) / M_PER_MI;
+  const price = t.gasPrice != null ? t.gasPrice : db.settings.gasPrice;
+  if (!t.mpg) return { miles, mpg: null, price, gallons: null, cost: null };
+  const gallons = miles / t.mpg;
+  return { miles, mpg: t.mpg, price, gallons, cost: gallons * price };
+}
+function pathDistance(path) { let d = 0; for (let i = 1; i < path.length; i++) d += hav(P(path[i - 1]), P(path[i])); return d; }
+function segStats(trips) {             // seg -> [durations ms]
+  const m = new Map();
+  trips.forEach(t => tripLegs(t).forEach(l => { if (!m.has(l.seg)) m.set(l.seg, []); m.get(l.seg).push(l.dur); }));
+  return m;
+}
+function nextCpName() {
+  let n = db.checkpoints.length + 1;
+  const names = new Set(db.checkpoints.map(c => c.name));
+  while (names.has('Checkpoint ' + n)) n++;
+  return 'Checkpoint ' + n;
+}
+function newRoute(name) {
+  const used = new Set(db.routes.map(r => r.color.toUpperCase()));
+  const color = PALETTE.find(c => !used.has(c)) || PALETTE[db.routes.length % PALETTE.length];
+  const r = { id: uid('r_'), name: name.trim().slice(0, 40), color, archived: false, createdAt: Date.now() };
+  db.routes.push(r); persist(); return r;
+}
+function promptNewRoute() {
+  const name = window.prompt('Name for the new route (e.g. "405 Freeway"):');
+  if (!name || !name.trim()) return null;
+  return newRoute(name);
+}
+function fillRouteSelect(sel, value, { allowNew = true, allowNone = true } = {}) {
+  const opts = db.routes.filter(r => !r.archived || r.id === value)
+    .map(r => `<option value="${esc(r.id)}">${esc(r.name)}${r.archived ? ' (archived)' : ''}</option>`);
+  if (allowNone) opts.push('<option value="">Decide later</option>');
+  if (allowNew) opts.push('<option value="__new">＋ New route…</option>');
+  sel.innerHTML = opts.join('');
+  sel.value = value == null ? '' : value;
+  if (sel.value !== (value == null ? '' : value)) sel.value = '';
+}
+
+/* ================= toast & sheet ================= */
+let toastTimer = null;
+function toast(msg, { undo = null, ms = 3200, warn = false } = {}) {
+  const el = $('#toast'); if (!el) return;
+  el.className = 'show' + (warn ? ' warn' : '');
+  el.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button class="linkbtn" id="toastUndo" type="button">Undo</button>' : '');
+  if (undo) $('#toastUndo').onclick = () => { undo(); el.className = ''; };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, undo ? 6000 : ms);
+}
+let sheetOnClose = null;
+function openSheet(html, { dismissable = false, onClose = null } = {}) {
+  const w = $('#sheetWrap'), s = $('#sheet');
+  s.innerHTML = html; s.scrollTop = 0;
+  w.classList.add('open');
+  w.onclick = e => { if (dismissable && e.target === w) closeSheet(); };
+  sheetOnClose = onClose;
+  return s;
+}
+function closeSheet() {
+  $('#sheetWrap').classList.remove('open'); $('#sheet').innerHTML = '';
+  const f = sheetOnClose; sheetOnClose = null; if (f) f();
+}
+
+/* ================= maps ================= */
+function makeMap(el, opts = {}) {
+  const m = L.map(el, Object.assign({ zoomControl: false, attributionControl: true, preferCanvas: false }, opts));
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+    className: 'dark-tiles'
+  }).addTo(m);
+  m.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+  return m;
+}
+function cpIcon(color, cls = '') {
+  return L.divIcon({ className: 'cp-icon', html: `<div class="cpm ${cls}" style="--c:${color}"><i class="ring"></i><i class="dot"></i></div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+}
+function meIcon(color) {
+  return L.divIcon({ className: 'me-icon', html: `<div class="me" style="--c:${color}"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+}
+function glowLine(latlngs, color, map) {   // wide translucent under a thin bright core (2 layers)
+  const glow = L.polyline(latlngs, { color, weight: 14, opacity: 0.22, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map);
+  const core = L.polyline(latlngs, { color, weight: 3.5, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map);
+  return { glow, core, setColor(c) { glow.setStyle({ color: c }); core.setStyle({ color: c }); }, add(ll) { glow.addLatLng(ll); core.addLatLng(ll); }, remove() { map.removeLayer(glow); map.removeLayer(core); } };
+}
+
+/* ================= GPS ================= */
+let watchId = null, lastFix = null, gpsState = 'off';
+function setGps(state, text) {
+  gpsState = state;
+  const c = $('#gpsChip');
+  c.textContent = text;
+  c.className = 'chipbtn ' + ({ ok: 'ok', weak: 'warn', wait: 'warn', bad: 'bad' }[state] || '');
+}
+function startWatch() {
+  if (!('geolocation' in navigator)) { setGps('bad', 'No GPS API'); return; }
+  if (window.isSecureContext === false) { setGps('bad', 'GPS needs HTTPS'); }
+  if (watchId != null) return;
+  setGps('wait', 'GPS…');
+  try {
+    watchId = navigator.geolocation.watchPosition(onFix, onGeoErr, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+  } catch (e) { setGps('bad', 'GPS error'); }
+}
+function onGeoErr(e) {
+  if (e.code === 1) {
+    setGps('bad', window.isSecureContext === false || location.protocol === 'file:' ? 'GPS needs HTTPS' : 'GPS denied');
+    if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  } else if (e.code === 3) setGps('wait', 'GPS waiting…');
+  else setGps('bad', 'GPS unavailable');
+}
+function onFix(p) {
+  const c = p.coords;
+  const f = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, t: Date.now() };
+  lastFix = f;
+  setGps(f.acc <= MAX_ACC_M ? 'ok' : 'weak', 'GPS ±' + Math.round(f.acc) + ' m');
+  if (driveMap) {
+    const ll = [f.lat, f.lng];
+    if (!meMarker) meMarker = L.marker(ll, { icon: meIcon(curColor()), interactive: false, zIndexOffset: 1000 }).addTo(driveMap);
+    else meMarker.setLatLng(ll);
+    if (follow) driveMap.setView(ll, Math.max(driveMap.getZoom(), 15), { animate: !reduceMotion });
+  }
+  if (active && active.stage === 'running') trackFix(f);
+}
+function trackFix(f) {
+  if (f.acc > MAX_ACC_M) return;
+  const a = active;
+  // distance: accumulate every good fix that moved >= 8 m from the last anchor (filters jitter), reject teleports
+  if (a.lastGood) {
+    const d = hav(a.lastGood, f), dt = Math.max(0.5, (f.t - a.lastGood.t) / 1000);
+    if (d >= 8 && d / dt < 75) { a.distanceM += d; a.lastGood = { lat: f.lat, lng: f.lng, t: f.t }; }
+    else if (d / dt >= 75 && dt > 30) { a.lastGood = { lat: f.lat, lng: f.lng, t: f.t }; } // long gap: re-anchor without counting
+  } else a.lastGood = { lat: f.lat, lng: f.lng, t: f.t };
+  // path thinning
+  const last = a.path[a.path.length - 1];
+  if (!last || (hav(P(last), f) >= THIN_DIST_M && f.t - last[0] >= THIN_MS)) {
+    a.path.push([f.t, r5(f.lat), r5(f.lng)]);
+    if (tripLine) tripLine.add([f.lat, f.lng]);
+  }
+  if (db.settings.autoHit) autoHitCheck(f);
+  if (Date.now() - lastActivePersist > 15000) persistActive();
+}
+function autoHitCheck(f) {
+  const a = active;
+  const hitIds = new Set(a.hits.map(h => h.cp));
+  for (const c of db.checkpoints) {
+    if (c.lat == null || hitIds.has(c.id)) continue;
+    const r = c.radius || db.settings.autoRadius || 100;
+    if (hav(c, f) <= r) { addHit(c, true, false); break; }
+  }
+}
+
+/* ================= wake lock ================= */
+let wakeLock = null;
+async function requestWake() {
+  if (!db.settings.wakeLock) return;
+  if (!('wakeLock' in navigator)) { updateHudNote(); return; }
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; updateHudNote(); });
+  } catch (e) { wakeLock = null; }
+  updateHudNote();
+}
+function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) { } wakeLock = null; updateHudNote(); }
+
+/* ================= drive screen ================= */
+let driveMap = null, meMarker = null, follow = true, tripLine = null, cpLayer = null, savedCpLayer = null;
+let pendingRouteId = routeById(db.settings.lastRouteId) ? db.settings.lastRouteId : '';
+const curRouteId = () => active ? (active.routeId || '') : pendingRouteId;
+const curColor = () => (routeById(curRouteId()) || UNASSIGNED).color;
+
+function initDriveMap() {
+  if (!hasL()) { $('#driveMap').innerHTML = '<div class="nomap">The map library didn\'t load (offline?).<br>Timing, checkpoints and MPG still work.</div>'; return; }
+  driveMap = makeMap($('#driveMap'));
+  let start = [34.0522, -118.2437], z = 11;
+  const lt = [...db.trips].sort((a, b) => b.endedAt - a.endedAt).find(t => t.path && t.path.length);
+  if (active && active.path.length) { const p = active.path[active.path.length - 1]; start = [p[1], p[2]]; z = 15; }
+  else if (lt) { const p = lt.path[lt.path.length - 1]; start = [p[1], p[2]]; z = 13; }
+  driveMap.setView(start, z);
+  savedCpLayer = L.layerGroup().addTo(driveMap);
+  cpLayer = L.layerGroup().addTo(driveMap);
+  driveMap.on('dragstart', () => { follow = false; $('#recenter').classList.add('show'); });
+}
+function drawDriveLayers() {
+  if (!driveMap) return;
+  savedCpLayer.clearLayers(); cpLayer.clearLayers();
+  if (tripLine) { tripLine.remove(); tripLine = null; }
+  const color = curColor();
+  const hitIds = new Set(active ? active.hits.map(h => h.cp) : []);
+  db.checkpoints.forEach(c => {
+    if (c.lat == null || hitIds.has(c.id)) return;
+    L.marker([c.lat, c.lng], { icon: cpIcon('#8A8AA0', 'dim'), interactive: true }).bindTooltip(esc(c.name)).addTo(savedCpLayer);
+  });
+  if (active) {
+    tripLine = glowLine(active.path.map(p => [p[1], p[2]]), color, driveMap);
+    active.hits.forEach(h => { const c = cpById(h.cp); if (c && c.lat != null) L.marker([c.lat, c.lng], { icon: cpIcon(color) }).bindTooltip(esc(c.name)).addTo(cpLayer); });
+  }
+  if (meMarker) meMarker.setIcon(meIcon(color));
+}
+function renderDrive() {
+  const running = !!(active && active.stage === 'running');
+  const pending = !!(active && active.stage !== 'running');
+  const btn = $('#startStop');
+  btn.textContent = running ? 'STOP' : pending ? 'FINISH SAVING' : 'START';
+  btn.className = 'bigbtn ' + (running ? 'stop' : pending ? 'resume' : 'start');
+  $('#tripStats').hidden = !running;
+  $('#cpBtn').disabled = !running;
+  fillRouteSelect($('#routeSelect'), curRouteId());
+  const color = curColor();
+  $('#routeChip').style.setProperty('--c', color);
+  document.documentElement.style.setProperty('--acc', color);
+  updateHudNote();
+  tick();
+}
+function updateHudNote() {
+  const n = $('#hudNote'); if (!n) return;
+  if (active && active.stage === 'running') {
+    if (!db.settings.wakeLock) n.textContent = 'Keep the app open and the screen on while driving.';
+    else if (wakeLock) n.textContent = 'Screen kept awake · keep the app in front for GPS';
+    else n.textContent = '⚠ Screen wake lock unavailable: set Auto-Lock to Never while driving.';
+  } else n.textContent = db.trips.length ? db.trips.length + ' trips saved' : 'Pick a route, then tap START when you pull out.';
+}
+function tick() {
+  if (!active || active.stage !== 'running') return;
+  const now = Date.now();
+  const hits = active.hits.slice().sort((a, b) => a.t - b.t);
+  const lastT = hits.length ? hits[hits.length - 1].t : active.startedAt;
+  $('#timer').textContent = fmtDur(now - active.startedAt);
+  $('#curLeg').textContent = fmtDur(now - lastT);
+  $('#legNo').textContent = hits.length + 1;
+  if (hits.length) {
+    const prevT = hits.length > 1 ? hits[hits.length - 2].t : active.startedAt;
+    $('#lastLeg').textContent = fmtDur(hits[hits.length - 1].t - prevT);
+  } else $('#lastLeg').textContent = '—';
+  $('#distNow').textContent = fmtDist(active.distanceM);
+}
+function startTrip() {
+  if (active) return;
+  const now = Date.now();
+  active = { id: uid('t_'), startedAt: now, endedAt: null, routeId: pendingRouteId || null, distanceM: 0, hits: [], path: [], newCpIds: [], lastGood: null, mpg: null, gasPrice: null, notes: '', stage: 'running' };
+  if (lastFix && now - lastFix.t < 15000 && lastFix.acc <= MAX_ACC_M) {
+    active.path.push([now, r5(lastFix.lat), r5(lastFix.lng)]);
+    active.lastGood = { lat: lastFix.lat, lng: lastFix.lng, t: now };
+  }
+  if (!persistActive()) toast('⚠ Trip is running but could not be saved to storage.', { warn: true });
+  startWatch(); requestWake();
+  follow = true; $('#recenter').classList.remove('show');
+  drawDriveLayers(); renderDrive(); haptic(30);
+}
+function stopTrip() {
+  if (!active || active.stage !== 'running') return;
+  active.endedAt = Date.now();
+  active.gasPrice = db.settings.gasPrice;
+  active.stage = db.settings.mpgPrompt ? 'mpg' : 'summary';
+  persistActive(); releaseWake(); haptic(40);
+  renderDrive(); showStage();
+}
+function addHit(cp, auto, isNew) {
+  const hit = { cp: cp.id, t: Date.now(), auto: !!auto };
+  active.hits.push(hit);
+  persistActive();
+  haptic(auto ? 20 : 25);
+  const btn = $('#cpBtn'); btn.classList.remove('flash'); void btn.offsetWidth; btn.classList.add('flash');
+  if (driveMap && cp.lat != null) {
+    const m = L.marker([cp.lat, cp.lng], { icon: cpIcon(curColor(), 'fresh') }).bindTooltip(esc(cp.name)).addTo(cpLayer);
+    setTimeout(() => { try { m.setIcon(cpIcon(curColor())); } catch (e) { } }, 3000);
+    savedCpLayer.eachLayer(l => { const ll = l.getLatLng(); if (Math.abs(ll.lat - cp.lat) < 1e-7 && Math.abs(ll.lng - cp.lng) < 1e-7) savedCpLayer.removeLayer(l); });
+  }
+  tick();
+  toast((auto ? 'Auto-hit: ' : isNew ? 'New: ' : 'Hit: ') + cp.name + (cp.lat == null ? ' (no GPS fix)' : ''), {
+    undo: () => {
+      if (!active) return;
+      const i = active.hits.indexOf(hit); if (i >= 0) active.hits.splice(i, 1);
+      if (isNew && !active.hits.some(h => h.cp === cp.id) && !db.trips.some(t => t.hits.some(h => h.cp === cp.id))) {
+        db.checkpoints = db.checkpoints.filter(c => c.id !== cp.id);
+        active.newCpIds = active.newCpIds.filter(id => id !== cp.id); persist();
+      }
+      persistActive(); drawDriveLayers(); tick();
+    }
+  });
+}
+function dropCheckpoint() {
+  if (!active || active.stage !== 'running') return;
+  const now = Date.now();
+  const f = lastFix && now - lastFix.t < 30000 && lastFix.acc <= 100 ? lastFix : null;
+  let cp = null;
+  if (f) {
+    let best = null, bd = Infinity;
+    db.checkpoints.forEach(c => { if (c.lat == null) return; const d = hav(c, f); if (d < bd) { bd = d; best = c; } });
+    if (best && bd <= REUSE_RADIUS_M) cp = best;
+  }
+  const lastHit = active.hits.slice().sort((a, b) => a.t - b.t).pop();
+  if (cp && lastHit && lastHit.cp === cp.id && now - lastHit.t < 60000) { toast('Already logged ' + cp.name + ' just now'); haptic(10); return; }
+  let isNew = false;
+  if (!cp) {
+    cp = { id: uid('c_'), name: nextCpName(), lat: f ? r5(f.lat) : null, lng: f ? r5(f.lng) : null, radius: null, createdAt: now };
+    db.checkpoints.push(cp); active.newCpIds.push(cp.id); persist(); isNew = true;
+  }
+  addHit(cp, false, isNew);
+}
+
+/* ================= stop flow: MPG sheet + summary ================= */
+function openMpgSheet({ initial = null, price, title = 'Average MPG from your car?', saveLabel = 'Save MPG', skipLabel = 'Skip', onSave, onSkip }) {
+  let buf = initial ? String(initial) : '';
+  let p = price;
+  const s = openSheet(`
+    <h2 class="sheet-title">${esc(title)}</h2>
+    <div class="mpg-display" id="mpgDisp"></div>
+    <div class="hint">e.g. 11.9 · one decimal · 1.0–99.9</div>
+    <div class="keypad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(k => `<button class="key" type="button" data-k="${k}">${k}</button>`).join('')}</div>
+    <div class="price-row"><button class="linkbtn" type="button" id="priceBtn"></button>
+      <span id="priceEdit" hidden>$ <input id="priceInput" type="number" inputmode="decimal" step="0.01" min="0.5" max="20"> <button class="btn sm" type="button" id="priceOk">OK</button></span>
+      <div class="small">Price applies to this trip only.</div></div>
+    <div class="row2"><button class="btn primary big" type="button" id="mpgSave">${esc(saveLabel)}</button><button class="btn big ghost" type="button" id="mpgSkip">${esc(skipLabel)}</button></div>`);
+  const valid = () => /^\d{1,2}(\.\d)?$/.test(buf) && parseFloat(buf) >= 1 && parseFloat(buf) <= 99.9;
+  const upd = () => {
+    $('#mpgDisp', s).textContent = buf || '—';
+    $('#mpgSave', s).disabled = !valid();
+    $('#priceBtn', s).textContent = '$' + p.toFixed(2) + '/gal · edit';
+  };
+  $$('.key', s).forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if (k === '⌫') buf = buf.slice(0, -1);
+    else if (k === '.') { if (!buf.includes('.')) buf = (buf || '0') + '.'; }
+    else { const nb = (buf + k).replace(/^0(\d)/, '$1'); if (/^\d{0,2}(\.\d?)?$/.test(nb)) buf = nb; }
+    haptic(6); upd();
+  });
+  $('#priceBtn', s).onclick = () => { $('#priceEdit', s).hidden = false; $('#priceBtn', s).hidden = true; const i = $('#priceInput', s); i.value = p.toFixed(2); i.focus(); };
+  $('#priceOk', s).onclick = () => {
+    const v = parseFloat($('#priceInput', s).value);
+    if (v > 0.2 && v < 30) p = Math.round(v * 1000) / 1000; else toast('Enter a price like 5.29');
+    $('#priceEdit', s).hidden = true; $('#priceBtn', s).hidden = false; upd();
+  };
+  $('#mpgSave', s).onclick = () => { if (valid()) onSave(parseFloat(buf), p); };
+  $('#mpgSkip', s).onclick = () => onSkip(p);
+  upd();
+  return s;
+}
+function showStage() {
+  if (!active) return;
+  if (active.stage === 'mpg') {
+    openMpgSheet({
+      initial: active.mpg, price: active.gasPrice != null ? active.gasPrice : db.settings.gasPrice,
+      onSave: (m, p) => { active.mpg = m; active.gasPrice = p; active.stage = 'summary'; persistActive(); showStage(); },
+      onSkip: p => { active.mpg = null; active.gasPrice = p; active.stage = 'summary'; persistActive(); showStage(); }
+    });
+  } else if (active.stage === 'summary') openSummary(false);
+  else if (active.stage === 'running') closeSheet();
+}
+function legsTableHtml(t, { compare = true } = {}) {
+  const legs = tripLegs(t);
+  const stats = compare ? segStats(db.trips.filter(x => x.id !== t.id)) : new Map();
+  return `<table class="legs"><thead><tr><th>#</th><th>Leg</th><th class="t">Time</th>${compare ? '<th class="t">vs avg</th>' : ''}</tr></thead><tbody>` +
+    legs.map((l, i) => {
+      const s = stats.get(l.seg) || [], av = avg(s);
+      const cmp = av == null ? '<span class="muted">new</span>' : `<span class="${l.dur - av > 0 ? 'pos' : 'neg'}">${fmtDelta(l.dur - av)}</span> <span class="muted small">n=${s.length}</span>`;
+      return `<tr><td>${i + 1}</td><td>${esc(ptName(l.from))} → ${esc(ptName(l.to))}</td><td class="t">${fmtDur(l.dur)}</td>${compare ? `<td class="t">${cmp}</td>` : ''}</tr>`;
+    }).join('') + '</tbody></table>';
+}
+function fuelLineHtml(t) {
+  const f = fuel(t);
+  if (!f.mpg) return `<div class="fuelline">${fmtDist(t.distanceM)} · <span class="muted">— MPG</span></div>`;
+  return `<div class="fuelline">${fmtDist(t.distanceM)} · ${f.gallons.toFixed(2)} gal · ${money(f.cost)}</div>
+    <div class="cmpline">${f.mpg.toFixed(1)} MPG · $${f.price.toFixed(2)}/gal</div>`;
+}
+function cpRenameHtml(t) {
+  const ids = [...new Set(t.hits.map(h => h.cp))].filter(id => cpById(id));
+  if (!ids.length) return '<div class="muted small">No checkpoints on this trip.</div>';
+  return ids.map(id => `<label class="field">Checkpoint</label><input type="text" class="cpRename" data-id="${esc(id)}" value="${esc(cpById(id).name)}" style="width:100%;margin-bottom:8px">`).join('');
+}
+function bindCpRename(root, after) {
+  $$('.cpRename', root).forEach(inp => inp.onchange = () => {
+    const c = cpById(inp.dataset.id); const v = inp.value.trim().slice(0, 50);
+    if (c && v) { c.name = v; persist(); if (after) after(); }
+  });
+}
+function openSummary(editing) {
+  const a = active; if (!a) return;
+  const total = a.endedAt - a.startedAt;
+  const r = routeById(a.routeId) || UNASSIGNED;
+  const prev = a.routeId ? db.trips.filter(t => t.routeId === a.routeId).map(dur) : [];
+  const av = avg(prev), best = minOf(prev);
+  const cmp = !a.routeId ? 'Pick a route to compare' : prev.length
+    ? `<span class="${total - av > 0 ? 'pos' : 'neg'}">${fmtDelta(total - av)} vs avg</span> · <span class="${total - best > 0 ? 'pos' : 'neg'}">${fmtDelta(total - best)} vs best</span> <span class="small">(n=${prev.length})</span>`
+    : 'First trip on this route';
+  const s = openSheet(`
+    <div class="sum-total" style="--acc:${r.color}">${fmtDur(total)}</div>
+    <div class="sum-route"><span class="chip" style="--c:${r.color}"></span>${esc(r.name)}</div>
+    <div class="cmpline">${cmp}</div>
+    ${fuelLineHtml(a)}
+    ${!a.mpg ? '<div style="text-align:center;margin-bottom:8px"><button class="btn sm" type="button" id="sumAddMpg">Add MPG</button></div>' : ''}
+    <div class="card">${legsTableHtml(a)}</div>
+    <div id="sumEdit" ${editing ? '' : 'hidden'} class="card">
+      <h3>Edit</h3>
+      <label class="field">Route</label><select id="sumRoute" style="width:100%;margin-bottom:10px"></select>
+      ${cpRenameHtml(a)}
+      <label class="field">Notes</label><textarea id="sumNotes" placeholder="Accident on the 405, rain…">${esc(a.notes || '')}</textarea>
+    </div>
+    <button class="btn primary big" type="button" id="sumSave" style="width:100%;margin-bottom:10px">Save trip</button>
+    <div class="row2"><button class="btn" type="button" id="sumEditBtn">${editing ? 'Done editing' : 'Edit'}</button><button class="btn danger" type="button" id="sumDiscard">Discard</button></div>`);
+  if (editing) {
+    const sel = $('#sumRoute', s); fillRouteSelect(sel, a.routeId || '');
+    sel.onchange = () => {
+      let v = sel.value;
+      if (v === '__new') { const nr = promptNewRoute(); v = nr ? nr.id : (a.routeId || ''); }
+      a.routeId = v || null; persistActive(); drawDriveLayers(); renderDrive(); openSummary(true);
+    };
+    bindCpRename(s, () => drawDriveLayers());
+    $('#sumNotes', s).oninput = e => { a.notes = e.target.value.slice(0, 500); persistActive(); };
+  }
+  const addMpg = $('#sumAddMpg', s);
+  if (addMpg) addMpg.onclick = () => { a.stage = 'mpg'; persistActive(); showStage(); };
+  $('#sumEditBtn', s).onclick = () => openSummary(!editing);
+  $('#sumSave', s).onclick = commitTrip;
+  $('#sumDiscard', s).onclick = () => { if (confirm('Discard this trip? It will not be saved.')) discardTrip(); };
+}
+function commitTrip() {
+  const a = active; if (!a) return;
+  const t = {
+    id: a.id, startedAt: a.startedAt, endedAt: a.endedAt, routeId: a.routeId || null, notes: a.notes || '',
+    distanceM: Math.round(a.distanceM), mpg: a.mpg != null ? a.mpg : null,
+    gasPrice: a.gasPrice != null ? a.gasPrice : db.settings.gasPrice,
+    hits: a.hits.map(h => ({ cp: h.cp, t: h.t, auto: !!h.auto })), path: a.path
+  };
+  db.trips.push(t);
+  const prevLast = db.settings.lastRouteId;
+  if (t.routeId) db.settings.lastRouteId = t.routeId;
+  if (!persist()) { db.trips.pop(); db.settings.lastRouteId = prevLast; return; }
+  active = null; persistActive();
+  pendingRouteId = routeById(db.settings.lastRouteId) ? db.settings.lastRouteId : '';
+  closeSheet(); drawDriveLayers(); renderDrive();
+  toast('Trip saved ✓  ' + fmtDur(dur(t)));
+}
+function discardTrip() {
+  const a = active; if (!a) return;
+  const used = new Set(db.trips.flatMap(t => t.hits.map(h => h.cp)));
+  db.checkpoints = db.checkpoints.filter(c => !(a.newCpIds || []).includes(c.id) || used.has(c.id));
+  persist();
+  active = null; persistActive(); releaseWake();
+  closeSheet(); drawDriveLayers(); renderDrive(); toast('Trip discarded');
+}
+
+/* ================= history ================= */
+const hf = { route: '*', dow: '*', tod: '*' };
+const TOD = [['*', 'Any time'], ['b7', 'Before 7 AM'], ['7-9', '7–9 AM'], ['9-16', '9 AM–4 PM'], ['16-19', '4–7 PM'], ['a19', 'After 7 PM']];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function todBucket(t) { const d = new Date(t), h = d.getHours() + d.getMinutes() / 60; return h < 7 ? 'b7' : h < 9 ? '7-9' : h < 16 ? '9-16' : h < 19 ? '16-19' : 'a19'; }
+function renderHistory() {
+  const v = $('#view-history');
+  const all = [...db.trips].sort((a, b) => b.startedAt - a.startedAt);
+  const list = all.filter(t =>
+    (hf.route === '*' || (t.routeId || '') === hf.route) &&
+    (hf.dow === '*' || new Date(t.startedAt).getDay() === +hf.dow) &&
+    (hf.tod === '*' || todBucket(t.startedAt) === hf.tod));
+  const routeOpts = '<option value="*">All routes</option>' + db.routes.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('') + '<option value="">Decide later</option>';
+  const totals = list.map(dur);
+  v.innerHTML = `<h1>History</h1>
+    ${all.some(t => t.demo) ? '<div class="banner demo">Includes DEMO trips (made-up data for previewing). Remove them in Settings → Data.</div>' : ''}
+    <div class="filters">
+      <select id="hfRoute" aria-label="Route filter">${routeOpts}</select>
+      <select id="hfDow" aria-label="Day filter"><option value="*">Any day</option>${DOW.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select>
+      <select id="hfTod" aria-label="Time filter">${TOD.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="muted small" style="margin-bottom:10px">${list.length} trip${list.length === 1 ? '' : 's'}${list.length ? ` · avg ${fmtDur(avg(totals))} · best ${fmtDur(minOf(totals))}` : ''}</div>
+    <div id="tripList">${list.length ? list.map(rowHtml).join('') : `<div class="empty">No trips${all.length ? ' match these filters' : ' yet. Tap START on the Drive tab, or load demo data in Settings'}.</div>`}</div>`;
+  $('#hfRoute').value = hf.route; $('#hfDow').value = hf.dow; $('#hfTod').value = hf.tod;
+  $('#hfRoute').onchange = e => { hf.route = e.target.value; renderHistory(); };
+  $('#hfDow').onchange = e => { hf.dow = e.target.value; renderHistory(); };
+  $('#hfTod').onchange = e => { hf.tod = e.target.value; renderHistory(); };
+  $$('.trip-row', v).forEach(b => b.onclick = () => openDetail(b.dataset.id));
+}
+function rowHtml(t) {
+  const r = routeOf(t), f = fuel(t), legs = tripLegs(t).length;
+  return `<button class="trip-row" type="button" data-id="${esc(t.id)}" style="--acc:${r.color}">
+    <span class="chip" style="--c:${r.color}"></span>
+    <div class="tr-main"><div><b>${esc(r.name)}</b>${t.demo ? '<span class="badge">DEMO</span>' : ''}</div>
+      <div class="tr-sub">${fmtDate(t.startedAt)} · ${fmtTime(t.startedAt)} · ${legs} leg${legs === 1 ? '' : 's'}</div></div>
+    <div class="tr-right"><div class="mono glow">${fmtDur(dur(t))}</div>
+      <div class="tr-sub">${f.mpg ? f.mpg.toFixed(1) + ' MPG · ' + money(f.cost) : '— MPG'}</div></div></button>`;
+}
+
+/* ================= trip detail ================= */
+let detailMap = null, detailTrip = null, replayRAF = null;
+function openDetail(id) {
+  const t = db.trips.find(x => x.id === id); if (!t) return;
+  detailTrip = t;
+  $('#detail').classList.add('open');
+  renderDetail();
+}
+function closeDetail() {
+  cancelAnimationFrame(replayRAF);
+  if (detailMap) { detailMap.remove(); detailMap = null; }
+  $('#detail').classList.remove('open'); detailTrip = null;
+  if (currentTab === 'history') renderHistory();
+  if (currentTab === 'compare') renderCompare();
+}
+function renderDetail() {
+  const t = detailTrip; if (!t) return;
+  const r = routeOf(t), f = fuel(t);
+  $('#detailTitle').innerHTML = `${esc(fmtDate(t.startedAt))} · ${esc(fmtTime(t.startedAt))}${t.demo ? '<span class="badge">DEMO</span>' : ''}`;
+  const routeTrips = t.routeId ? db.trips.filter(x => x.routeId === t.routeId && x.id !== t.id).map(dur) : [];
+  const av = avg(routeTrips);
+  $('#detailBody').innerHTML = `
+    <div class="sum-total" style="--acc:${r.color}">${fmtDur(dur(t))}</div>
+    <div class="sum-route"><span class="chip" style="--c:${r.color}"></span>${esc(r.name)}</div>
+    <div class="cmpline">${av != null ? `<span class="${dur(t) - av > 0 ? 'pos' : 'neg'}">${fmtDelta(dur(t) - av)}</span> vs route avg (n=${routeTrips.length})` : ''} · ${fmtTime(t.startedAt)}–${fmtTime(t.endedAt)}</div>
+    ${hasL() ? `<div id="detailMap" class="mini-map"></div>` : '<div class="card muted">Map library not loaded.</div>'}
+    <div class="row" style="margin-bottom:14px"><button class="btn sm" type="button" id="replayBtn" ${t.path.length < 2 ? 'disabled' : ''}>▶ Replay drive</button>
+      <span class="muted small">${t.path.length} GPS points</span></div>
+    <div class="card"><h3>Legs</h3>${legsTableHtml(t)}</div>
+    <div class="card"><h3>Fuel</h3>
+      <div class="kv">
+        <div><small>Distance</small><b>${fmtDist(t.distanceM)}</b></div>
+        <div><small>MPG</small><b>${f.mpg ? f.mpg.toFixed(1) : '—'}</b></div>
+        <div><small>Gas price</small><b>$${f.price.toFixed(2)}</b></div>
+        <div><small>Gallons</small><b>${f.gallons != null ? f.gallons.toFixed(2) : '—'}</b></div>
+        <div style="grid-column:1/3"><small>Fuel cost</small><b style="color:var(--lime);text-shadow:0 0 8px var(--lime)">${money(f.cost)}</b></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn sm" type="button" id="dMpg">${f.mpg ? 'Edit MPG' : 'Add MPG'}</button>
+        ${f.mpg ? '<button class="btn sm ghost" type="button" id="dMpgClear">Clear MPG</button>' : ''}</div>
+      ${f.miles < 0.1 ? '<div class="muted small" style="margin-top:8px">No GPS distance was recorded, so fuel cost can\'t be calculated for this trip.</div>' : ''}
+    </div>
+    <div class="card"><h3>Edit</h3>
+      <label class="field">Route</label><select id="dRoute" style="width:100%;margin-bottom:10px"></select>
+      ${cpRenameHtml(t)}
+      <label class="field">Notes</label><textarea id="dNotes">${esc(t.notes || '')}</textarea>
+    </div>
+    <button class="btn danger" type="button" id="dDelete" style="width:100%">Delete trip</button>`;
+  const sel = $('#dRoute'); fillRouteSelect(sel, t.routeId || '');
+  sel.onchange = () => {
+    let v = sel.value;
+    if (v === '__new') { const nr = promptNewRoute(); v = nr ? nr.id : (t.routeId || ''); }
+    t.routeId = v || null; persist(); renderDetail();
+  };
+  bindCpRename($('#detailBody'), () => renderDetail());
+  $('#dNotes').onchange = e => { t.notes = e.target.value.slice(0, 500); persist(); };
+  $('#dMpg').onclick = () => openMpgSheet({
+    initial: t.mpg, price: f.price, title: 'Trip MPG', saveLabel: 'Save', skipLabel: 'Cancel',
+    onSave: (m, p) => { t.mpg = m; t.gasPrice = p; persist(); closeSheet(); renderDetail(); },
+    onSkip: p => { t.gasPrice = p; persist(); closeSheet(); renderDetail(); }
+  });
+  const clr = $('#dMpgClear'); if (clr) clr.onclick = () => { t.mpg = null; persist(); renderDetail(); };
+  $('#dDelete').onclick = () => {
+    if (!confirm('Delete this trip permanently?')) return;
+    db.trips = db.trips.filter(x => x.id !== t.id); persist(); closeDetail(); toast('Trip deleted');
+  };
+  $('#replayBtn').onclick = () => replay(t);
+  drawDetailMap(t);
+}
+function drawDetailMap(t) {
+  if (!hasL()) return;
+  cancelAnimationFrame(replayRAF);
+  if (detailMap) { detailMap.remove(); detailMap = null; }
+  const el = $('#detailMap'); if (!el) return;
+  detailMap = makeMap(el, { zoomControl: true });
+  const r = routeOf(t);
+  const ll = t.path.map(p => [p[1], p[2]]);
+  const pts = [];
+  if (ll.length) {
+    glowLine(ll, r.color, detailMap);
+    L.marker(ll[0], { icon: cpIcon('#FFFFFF', 'dim') }).bindTooltip('Start').addTo(detailMap);
+    L.marker(ll[ll.length - 1], { icon: cpIcon(r.color, 'dim end') }).bindTooltip('End').addTo(detailMap);
+    pts.push(...ll);
+  }
+  [...new Set(t.hits.map(h => h.cp))].forEach(id => {
+    const c = cpById(id); if (!c || c.lat == null) return;
+    L.marker([c.lat, c.lng], { icon: cpIcon(r.color) }).bindTooltip(esc(c.name)).addTo(detailMap);
+    pts.push([c.lat, c.lng]);
+  });
+  setTimeout(() => {
+    if (!detailMap) return;
+    detailMap.invalidateSize();
+    if (pts.length > 1) detailMap.fitBounds(L.latLngBounds(pts), { padding: [24, 24] });
+    else if (pts.length === 1) detailMap.setView(pts[0], 15);
+    else detailMap.setView([34.0522, -118.2437], 10);
+  }, 60);
+}
+function replay(t) {
+  if (!detailMap || t.path.length < 2) return;
+  cancelAnimationFrame(replayRAF);
+  const r = routeOf(t);
+  const line = L.polyline([], { color: '#FFFFFF', weight: 4, opacity: 0.95, interactive: false }).addTo(detailMap);
+  const dot = L.marker([t.path[0][1], t.path[0][2]], { icon: meIcon(r.color), interactive: false }).addTo(detailMap);
+  const T = reduceMotion ? 1 : 7000, t0 = performance.now();
+  const tStart = t.path[0][0], tEnd = t.path[t.path.length - 1][0];
+  let i = 0;
+  const step = now => {
+    if (!detailMap) return;
+    const k = Math.min(1, (now - t0) / T);
+    const target = tStart + k * (tEnd - tStart);       // replay paced by real timestamps, so slow stretches look slow
+    while (i < t.path.length - 1 && t.path[i + 1][0] <= target) i++;
+    line.setLatLngs(t.path.slice(0, i + 1).map(p => [p[1], p[2]]));
+    dot.setLatLng([t.path[i][1], t.path[i][2]]);
+    if (k < 1) replayRAF = requestAnimationFrame(step);
+    else setTimeout(() => { if (detailMap) { detailMap.removeLayer(line); detailMap.removeLayer(dot); } }, 1500);
+  };
+  replayRAF = requestAnimationFrame(step);
+}
+
+/* ================= compare (charts) ================= */
+let cmpRange = 'all', cmpSeg = null;
+const charts = {};
+const glowPlugin = {
+  id: 'neonGlow',
+  beforeDatasetsDraw(chart) {
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      [meta.dataset].concat(meta.data || []).forEach(el => {
+        if (!el || el.$neon) return;
+        const orig = el.draw;
+        el.draw = function (ctx, ...rest) {
+          ctx.save();
+          const o = this.options || {};
+          const c = o.borderColor || o.backgroundColor;
+          ctx.shadowColor = typeof c === 'string' ? c : '#ffffff';
+          ctx.shadowBlur = ds.glow != null ? ds.glow : 14;
+          orig.call(this, ctx, ...rest);
+          ctx.restore();
+        };
+        el.$neon = true;
+      });
+    });
+  }
+};
+let chartSetup = false;
+function setupCharts() {
+  if (chartSetup || !hasChart()) return;
+  Chart.register(glowPlugin);
+  Chart.defaults.color = '#8A8AA0';
+  Chart.defaults.borderColor = '#1E1E2A';
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  if (reduceMotion) Chart.defaults.animation = false;
+  chartSetup = true;
+}
+function isObj(x) { return x && typeof x === 'object' && !Array.isArray(x); }
+function merge(a, b) { const o = Object.assign({}, a); for (const k in b) o[k] = isObj(a[k]) && isObj(b[k]) ? merge(a[k], b[k]) : b[k]; return o; }
+function opts(extra = {}) {
+  return merge({
+    responsive: true, maintainAspectRatio: false,
+    animation: reduceMotion ? false : { duration: 500 },
+    plugins: {
+      legend: { labels: { color: '#C8C8DA', usePointStyle: true, boxWidth: 8 } },
+      tooltip: { backgroundColor: '#0A0A14', borderColor: '#2A2A3C', borderWidth: 1, titleColor: '#fff', bodyColor: '#C8C8DA', padding: 10 }
+    },
+    scales: {
+      x: { grid: { color: '#1E1E2A' }, ticks: { color: '#8A8AA0' } },
+      y: { grid: { color: '#1E1E2A' }, ticks: { color: '#8A8AA0' }, beginAtZero: true }
+    }
+  }, extra);
+}
+const minTicks = { ticks: { callback: v => fmtMin(v) } };
+const dateTicks = { type: 'linear', ticks: { callback: v => new Date(v).toLocaleDateString([], { month: 'short', day: 'numeric' }), maxTicksLimit: 6 } };
+function mkChart(id, cfg) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const el = document.getElementById(id); if (!el || !hasChart()) return;
+  charts[id] = new Chart(el, cfg);
+}
+function groupByRoute(trips) {
+  const m = new Map();
+  trips.forEach(t => { const r = routeOf(t); if (!m.has(r.id)) m.set(r.id, { route: r, trips: [] }); m.get(r.id).trips.push(t); });
+  return [...m.values()].sort((a, b) => (db.routes.indexOf(a.route) + 1 || 99) - (db.routes.indexOf(b.route) + 1 || 99));
+}
+const toMin = ms => ms / 60000;
+function renderCompare() {
+  setupCharts();
+  const v = $('#view-compare');
+  Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
+  const days = { '2w': 14, '1m': 30, '3m': 91 }[cmpRange];
+  const cut = days ? Date.now() - days * 864e5 : 0;
+  const trips = db.trips.filter(t => t.endedAt && t.startedAt >= cut).sort((a, b) => a.startedAt - b.startedAt);
+  const rangeHtml = `<div class="seg" id="rangeSeg">${[['2w', '2 weeks'], ['1m', '1 month'], ['3m', '3 months'], ['all', 'All time']].map(([k, l]) => `<button type="button" data-r="${k}" class="${cmpRange === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const bindRange = () => $$('#rangeSeg button').forEach(b => b.onclick = () => { cmpRange = b.dataset.r; renderCompare(); });
+  if (!trips.length) {
+    v.innerHTML = `<h1>Compare</h1>${rangeHtml}<div class="empty">No trips in this range yet.<br><br><button class="btn" type="button" id="cmpDemo">Load demo data to preview</button></div>`;
+    bindRange(); $('#cmpDemo').onclick = () => { loadDemo(); renderCompare(); }; return;
+  }
+  if (!hasChart()) { v.innerHTML = `<h1>Compare</h1><div class="banner">Chart.js didn't load (offline?). Connect once to load charts.</div>`; return; }
+  const groups = groupByRoute(trips);
+  const mpgTrips = trips.filter(t => t.mpg && t.distanceM > 0);
+  const mpgGroups = groupByRoute(mpgTrips);
+  const segMap = new Map(); // seg -> Map(routeId -> {route, durs:[], pts:[]})
+  trips.forEach(t => tripLegs(t).forEach(l => {
+    if (!segMap.has(l.seg)) segMap.set(l.seg, new Map());
+    const r = routeOf(t), m = segMap.get(l.seg);
+    if (!m.has(r.id)) m.set(r.id, { route: r, durs: [], pts: [] });
+    m.get(r.id).durs.push(l.dur); m.get(r.id).pts.push({ x: t.startedAt, y: toMin(l.dur) });
+  }));
+  const segs = [...segMap.entries()].map(([k, m]) => ({ k, routes: m.size, n: [...m.values()].reduce((a, b) => a + b.durs.length, 0) }))
+    .filter(s => s.k !== 'S>E' || s.routes > 0)
+    .sort((a, b) => b.routes - a.routes || b.n - a.n);
+  if (!cmpSeg || !segMap.has(cmpSeg)) cmpSeg = (segs.find(s => s.k !== 'S>E') || segs[0] || {}).k || null;
+
+  v.innerHTML = `<h1>Compare</h1>${rangeHtml}
+    ${trips.some(t => t.demo) ? '<div class="banner demo">Charts include DEMO data. Remove it in Settings → Data.</div>' : ''}
+    <div class="card"><h3>Total time by route</h3><div class="chart-box"><canvas id="cTotal"></canvas></div></div>
+    <div class="card"><h3>Total time trend</h3><div class="chart-box"><canvas id="cTrend"></canvas></div></div>
+    <div class="card"><h3>Leg comparison</h3>
+      <select id="segPick" class="full" aria-label="Leg segment">${segs.map(s => `<option value="${esc(s.k)}">${esc(segLabel(s.k))} · ${s.routes} route${s.routes === 1 ? '' : 's'}, n=${s.n}</option>`).join('')}</select>
+      <div class="chart-box"><canvas id="cLeg"></canvas></div>
+      <h3 style="margin-top:14px">Leg trend</h3><div class="chart-box"><canvas id="cLegTrend"></canvas></div></div>
+    <div class="card"><h3>Fuel cost per trip by route</h3>${mpgTrips.length ? '<div class="chart-box"><canvas id="cFuel"></canvas></div>' : '<div class="muted">No trips with MPG in this range yet.</div>'}</div>
+    <div class="card"><h3>Fuel cost trend</h3>${mpgTrips.length ? '<div class="chart-box"><canvas id="cCostTrend"></canvas></div>' : '<div class="muted">—</div>'}</div>
+    <div class="card"><h3>Average MPG by route</h3>${mpgTrips.length ? '<div class="chart-box"><canvas id="cMpg"></canvas></div>' : '<div class="muted">—</div>'}</div>
+    <div class="card"><h3>Time vs. cost</h3>${mpgTrips.length ? '<div class="chart-box tall"><canvas id="cScatter"></canvas></div><div id="tvc" style="margin-top:10px"></div>' : '<div class="muted">Add MPG to trips to see the trade-off.</div>'}</div>
+    <div class="card"><h3>Best combo</h3><div id="combo"></div></div>`;
+  bindRange();
+  const sp = $('#segPick'); if (cmpSeg) sp.value = cmpSeg;
+  sp.onchange = () => { cmpSeg = sp.value; drawLegCharts(segMap); };
+
+  // 1. avg / best by route
+  const labels = groups.map(g => g.route.name);
+  const colors = groups.map(g => g.route.color);
+  mkChart('cTotal', {
+    type: 'bar',
+    data: {
+      labels, datasets: [
+        { label: 'Average', data: groups.map(g => toMin(avg(g.trips.map(dur)))), backgroundColor: colors.map(c => c + 'AA'), borderColor: colors, borderWidth: 2, borderRadius: 6 },
+        { label: 'Best', data: groups.map(g => toMin(minOf(g.trips.map(dur)))), backgroundColor: colors.map(c => c + '33'), borderColor: colors, borderWidth: 2, borderRadius: 6 }
+      ]
+    },
+    options: opts({ scales: { y: minTicks }, plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtMin(c.raw)} (n=${groups[c.dataIndex].trips.length})` } } } })
+  });
+  // 2. trend
+  mkChart('cTrend', {
+    type: 'line',
+    data: { datasets: groups.map(g => ({ label: g.route.name, data: g.trips.map(t => ({ x: t.startedAt, y: toMin(dur(t)) })), borderColor: g.route.color, backgroundColor: g.route.color, tension: 0.3, pointRadius: 3, borderWidth: 2.5 })) },
+    options: opts({ scales: { x: dateTicks, y: merge(minTicks, { beginAtZero: false }) }, plugins: { tooltip: { callbacks: { title: c => fmtDate(c[0].raw.x), label: c => `${c.dataset.label}: ${fmtMin(c.raw.y)}` } } } })
+  });
+  drawLegCharts(segMap);
+  // 5-8 fuel
+  if (mpgTrips.length) {
+    const fl = mpgGroups.map(g => [g.route.name, `n=${g.trips.length} · ${avg(g.trips.map(t => t.mpg)).toFixed(1)} mpg`]);
+    const fc = mpgGroups.map(g => g.route.color);
+    mkChart('cFuel', {
+      type: 'bar',
+      data: { labels: fl, datasets: [{ label: 'Avg fuel cost', data: mpgGroups.map(g => avg(g.trips.map(t => fuel(t).cost))), backgroundColor: fc.map(c => c + 'AA'), borderColor: fc, borderWidth: 2, borderRadius: 6 }] },
+      options: opts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => money(c.raw) } } }, scales: { y: { ticks: { callback: v => '$' + Number(v).toFixed(2) } } } })
+    });
+    mkChart('cCostTrend', {
+      type: 'line',
+      data: { datasets: mpgGroups.map(g => ({ label: g.route.name, data: g.trips.map(t => ({ x: t.startedAt, y: fuel(t).cost })), borderColor: g.route.color, backgroundColor: g.route.color, tension: 0.3, pointRadius: 3, borderWidth: 2.5 })) },
+      options: opts({ scales: { x: dateTicks, y: { beginAtZero: false, ticks: { callback: v => '$' + Number(v).toFixed(2) } } }, plugins: { tooltip: { callbacks: { title: c => fmtDate(c[0].raw.x), label: c => `${c.dataset.label}: ${money(c.raw.y)}` } } } })
+    });
+    mkChart('cMpg', {
+      type: 'bar',
+      data: { labels: fl.map(x => x[0]), datasets: [{ label: 'Avg MPG', data: mpgGroups.map(g => avg(g.trips.map(t => t.mpg))), backgroundColor: fc.map(c => c + 'AA'), borderColor: fc, borderWidth: 2, borderRadius: 6 }] },
+      options: opts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => Number(c.raw).toFixed(1) + ' MPG (n=' + mpgGroups[c.dataIndex].trips.length + ')' } } } })
+    });
+    mkChart('cScatter', {
+      type: 'scatter',
+      data: { datasets: mpgGroups.map(g => ({ label: g.route.name, data: g.trips.map(t => ({ x: toMin(dur(t)), y: fuel(t).cost, t: t.startedAt })), borderColor: g.route.color, backgroundColor: g.route.color + 'CC', pointRadius: 5, pointHoverRadius: 7, glow: 10 })) },
+      options: opts({
+        scales: { x: { type: 'linear', title: { display: true, text: 'Total time', color: '#8A8AA0' }, ticks: { callback: v => fmtMin(v) } }, y: { beginAtZero: false, title: { display: true, text: 'Fuel cost', color: '#8A8AA0' }, ticks: { callback: v => '$' + Number(v).toFixed(2) } } },
+        plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtMin(c.raw.x)} · ${money(c.raw.y)} · ${fmtDate(c.raw.t)}` } } }
+      })
+    });
+    // summary
+    const rows = mpgGroups.map(g => ({ r: g.route, n: g.trips.length, t: toMin(avg(g.trips.map(dur))), c: avg(g.trips.map(t => fuel(t).cost)) }));
+    const cheap = rows.reduce((a, b) => b.c < a.c ? b : a, rows[0]);
+    $('#tvc').innerHTML = rows.map(x => {
+      let note;
+      if (x === cheap) note = 'cheapest route';
+      else {
+        const saved = cheap.t - x.t, extra = x.c - cheap.c;
+        note = saved > 0.05 ? `${fmtMin(saved)} faster for +${money(extra)} → <b>${money(extra / saved)}/min saved</b>` : `slower and +${money(extra)} vs ${esc(cheap.r.name)}`;
+      }
+      return `<div class="combo-row"><span class="chip" style="--c:${x.r.color}"></span> <b>${esc(x.r.name)}</b> · avg ${fmtMin(x.t)} · avg ${money(x.c)} <span class="muted small">(n=${x.n})</span><br><span class="muted small">${note}</span></div>`;
+    }).join('');
+  }
+  // best combo
+  $('#combo').innerHTML = comboHtml(segMap, groups);
+}
+function drawLegCharts(segMap) {
+  const m = cmpSeg && segMap.get(cmpSeg);
+  if (!m) { ['cLeg', 'cLegTrend'].forEach(id => { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }); return; }
+  const gs = [...m.values()];
+  const cs = gs.map(g => g.route.color);
+  mkChart('cLeg', {
+    type: 'bar',
+    data: {
+      labels: gs.map(g => [g.route.name, 'n=' + g.durs.length]), datasets: [
+        { label: 'Average', data: gs.map(g => toMin(avg(g.durs))), backgroundColor: cs.map(c => c + 'AA'), borderColor: cs, borderWidth: 2, borderRadius: 5 },
+        { label: 'Median', data: gs.map(g => toMin(median(g.durs))), backgroundColor: cs.map(c => c + '66'), borderColor: cs, borderWidth: 2, borderRadius: 5 },
+        { label: 'Best', data: gs.map(g => toMin(minOf(g.durs))), backgroundColor: cs.map(c => c + '22'), borderColor: cs, borderWidth: 2, borderRadius: 5 }
+      ]
+    },
+    options: opts({ scales: { y: minTicks }, plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtMin(c.raw)}` } } } })
+  });
+  mkChart('cLegTrend', {
+    type: 'line',
+    data: { datasets: gs.map(g => ({ label: g.route.name, data: g.pts, borderColor: g.route.color, backgroundColor: g.route.color, tension: 0.3, pointRadius: 3, borderWidth: 2.5 })) },
+    options: opts({ scales: { x: dateTicks, y: merge(minTicks, { beginAtZero: false }) }, plugins: { tooltip: { callbacks: { title: c => fmtDate(c[0].raw.x), label: c => `${c.dataset.label}: ${fmtMin(c.raw.y)}` } } } })
+  });
+}
+function comboHtml(segMap, groups) {
+  const best = new Map(); // seg -> {route, avg, n}
+  segMap.forEach((m, seg) => {
+    let b = null;
+    m.forEach(g => { const a = avg(g.durs); if (!b || a < b.avg) b = { route: g.route, avg: a, n: g.durs.length }; });
+    best.set(seg, b);
+  });
+  // theoretical best: shortest path Start -> End through segments using fastest average per segment (Dijkstra)
+  const edges = new Map();
+  best.forEach((b, seg) => { const [a, z] = seg.split('>'); if (!edges.has(a)) edges.set(a, []); edges.get(a).push({ to: z, w: b.avg, seg }); });
+  const dist = new Map([['S', 0]]), prev = new Map(), done = new Set();
+  while (true) {
+    let u = null, ud = Infinity;
+    dist.forEach((d, k) => { if (!done.has(k) && d < ud) { ud = d; u = k; } });
+    if (u == null || u === 'E') break;
+    done.add(u);
+    (edges.get(u) || []).forEach(e => { const nd = ud + e.w; if (!dist.has(e.to) || nd < dist.get(e.to)) { dist.set(e.to, nd); prev.set(e.to, e.seg); } });
+  }
+  const segRows = [...best.entries()].filter(([seg]) => seg !== 'S>E').sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([seg, b]) => `<div class="combo-row">${esc(segLabel(seg))}<br><span class="chip" style="--c:${b.route.color}"></span> <b>${esc(b.route.name)}</b> <span class="mono">${fmtDur(b.avg)}</span> avg <span class="muted small">(n=${b.n})</span></div>`);
+  let theo = '<div class="muted">Drop checkpoints on a few trips to build a best combo.</div>';
+  if (dist.has('E') && prev.size) {
+    const chain = []; let k = 'E';
+    while (prev.has(k)) { const s = prev.get(k); chain.unshift(s); k = s.split('>')[0]; }
+    const allBest = minOf(groups.flatMap(g => g.trips.map(dur)));
+    const allAvg = avg(groups.flatMap(g => g.trips.map(dur)));
+    theo = `<div class="combo-row"><b>Theoretical best commute: <span class="mono glow" style="--acc:var(--lime)">${fmtDur(dist.get('E'))}</span></b><br>
+      ${chain.map(s => { const b = best.get(s); return `<span class="chip" style="--c:${b.route.color}"></span> ${esc(segLabel(s))} <span class="mono">${fmtDur(b.avg)}</span>`; }).join('<br>')}
+      <br><span class="muted small">Built from the fastest average for each leg. Your overall average is ${fmtDur(allAvg)}; best actual trip ${fmtDur(allBest)}.</span></div>`;
+  }
+  return theo + (segRows.length ? '<h3 style="margin-top:12px">Fastest option per leg</h3>' + segRows.join('') : '');
+}
+
+/* ================= settings ================= */
+function storageSize() { const s = (lsGet(LS_DB) || '').length + (lsGet(LS_ACTIVE) || '').length; return s * 2; }
+function renderSettings() {
+  const v = $('#view-settings'), S = db.settings;
+  const hasDemo = db.trips.some(t => t.demo) || db.checkpoints.some(c => c.demo);
+  const usedCount = id => db.trips.reduce((n, t) => n + (t.hits.some(h => h.cp === id) ? 1 : 0), 0);
+  v.innerHTML = `<h1>Settings</h1>
+    ${storageBroken ? '<div class="banner">⚠ Browser storage is blocked here (private mode?). Nothing will be saved.</div>' : ''}
+    <div class="card"><h3>Fuel</h3>
+      <label class="field">Default gas price ($/gal)</label>
+      <div class="row"><input type="number" id="sGas" inputmode="decimal" step="0.01" min="0.5" max="20" value="${S.gasPrice.toFixed(2)}" style="width:120px">
+        <button class="btn sm" type="button" id="sGasSave">Save</button><button class="btn sm ghost" type="button" id="sGasAll">Apply to all past trips</button></div>
+      <div class="muted small" style="margin:6px 0 4px">Each trip keeps the price in effect when it was saved.</div>
+      <label class="toggle"><span>Ask for MPG at Stop</span><input type="checkbox" id="sMpg" ${S.mpgPrompt ? 'checked' : ''}></label>
+    </div>
+    <div class="card"><h3>Drive</h3>
+      <label class="toggle"><span>Auto-hit saved checkpoints</span><input type="checkbox" id="sAuto" ${S.autoHit ? 'checked' : ''}></label>
+      <div class="toggle"><span>Auto-hit radius (m)</span><input type="number" id="sRad" min="30" max="500" step="10" value="${S.autoRadius}" style="width:100px"></div>
+      <label class="toggle"><span>Keep screen awake during trips</span><input type="checkbox" id="sWake" ${S.wakeLock ? 'checked' : ''}></label>
+      <div class="toggle"><span>Units</span><select id="sUnits"><option value="mi">Miles</option><option value="km">Kilometers</option></select></div>
+      <div class="muted small">Fuel math always uses miles and US gallons.</div>
+    </div>
+    <div class="card"><h3>Routes</h3>
+      ${db.routes.map(r => `<div class="route-item" data-id="${esc(r.id)}">
+        <input type="text" class="rName" value="${esc(r.name)}" aria-label="Route name">
+        <div class="swatches">${PALETTE.map(c => `<button type="button" class="sw-btn ${c.toUpperCase() === r.color.toUpperCase() ? 'on' : ''}" style="--c:${c}" data-c="${c}" aria-label="color ${c}"></button>`).join('')}
+          <input type="color" class="rColor" value="${esc(r.color.slice(0, 7))}" aria-label="Custom color"></div>
+        <div class="row"><label class="row small"><input type="checkbox" class="rArch" ${r.archived ? 'checked' : ''}> Archived</label>
+          <span class="muted small">${db.trips.filter(t => t.routeId === r.id).length} trips</span>
+          <button type="button" class="btn sm danger rDel" style="margin-left:auto">Delete</button></div></div>`).join('')}
+      <button class="btn sm" type="button" id="sAddRoute">＋ Add route</button>
+    </div>
+    <div class="card"><h3>Saved checkpoints</h3>
+      ${db.checkpoints.length ? db.checkpoints.map(c => `<div class="cp-item" data-id="${esc(c.id)}">
+        <input type="text" class="cName" value="${esc(c.name)}" aria-label="Checkpoint name">
+        <div class="row small" style="margin-top:8px">
+          <span class="muted">${c.lat != null ? c.lat.toFixed(4) + ', ' + c.lng.toFixed(4) : 'no location'} · ${usedCount(c.id)} trips${c.demo ? ' · DEMO' : ''}</span></div>
+        <div class="row small" style="margin-top:8px">
+          <label>Radius <input type="number" class="cRad" min="30" max="500" step="10" placeholder="${S.autoRadius}" value="${c.radius || ''}" style="width:84px"> m</label>
+          <select class="cMerge" style="max-width:150px"><option value="">Merge into…</option>${db.checkpoints.filter(o => o.id !== c.id).map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select>
+          <button type="button" class="btn sm danger cDel">Delete</button></div></div>`).join('') : '<div class="muted small">Checkpoints you drop while driving show up here.</div>'}
+    </div>
+    <div class="card"><h3>Data</h3>
+      <div class="stack">
+        <button class="btn" type="button" id="sCsv" style="width:100%">Export CSV (trips + legs)</button>
+        <button class="btn" type="button" id="sJson" style="width:100%">Export JSON backup</button>
+        <button class="btn ghost" type="button" id="sImport" style="width:100%">Import JSON backup…</button>
+        <input type="file" id="sImportFile" accept="application/json,.json" hidden>
+        <button class="btn pink" type="button" id="sDemo" style="width:100%">${hasDemo ? 'Reload demo data' : 'Load demo data (preview charts)'}</button>
+        ${hasDemo ? '<button class="btn danger" type="button" id="sDemoDel" style="width:100%">Remove demo data</button>' : ''}
+        <div class="muted small">Demo data is ~30 made-up LA commutes marked DEMO. It never mixes with your real trips and can be removed anytime.</div>
+        <button class="btn danger" type="button" id="sWipe" style="width:100%">Delete all data</button>
+        <div class="muted small">Storage used ≈ ${(storageSize() / 1048576).toFixed(2)} MB of ~5 MB browser storage · ${db.trips.length} trips · ${db.checkpoints.length} checkpoints. Data lives only in this browser; export backups now and then.</div>
+      </div>
+    </div>
+    <div class="card"><h3>About</h3><div class="muted small">Neon Commute · personal use · no accounts, no servers, no API keys. Map © OpenStreetMap contributors via Leaflet; charts by Chart.js.
+      GPS needs an HTTPS page and the app must stay open with the screen on while driving (iPhone web apps can't track in the background). Timing uses timestamps, so totals stay correct even if GPS pauses.</div></div>`;
+  $('#sUnits').value = S.units;
+  const save = () => { persist(); };
+  $('#sGasSave').onclick = () => { const x = parseFloat($('#sGas').value); if (x > 0.2 && x < 30) { S.gasPrice = Math.round(x * 1000) / 1000; save(); toast('Gas price saved: $' + S.gasPrice.toFixed(2)); } else toast('Enter a price like 5.29'); };
+  $('#sGasAll').onclick = () => {
+    const x = parseFloat($('#sGas').value); if (!(x > 0.2 && x < 30)) { toast('Enter a price like 5.29'); return; }
+    if (!confirm(`Set $${x.toFixed(2)}/gal on all ${db.trips.length} past trips? This changes their fuel cost.`)) return;
+    S.gasPrice = x; db.trips.forEach(t => t.gasPrice = x); save(); toast('Applied to all trips');
+  };
+  $('#sMpg').onchange = e => { S.mpgPrompt = e.target.checked; save(); };
+  $('#sAuto').onchange = e => { S.autoHit = e.target.checked; save(); };
+  $('#sRad').onchange = e => { const x = parseInt(e.target.value, 10); if (x >= 30 && x <= 500) { S.autoRadius = x; save(); } else e.target.value = S.autoRadius; };
+  $('#sWake').onchange = e => { S.wakeLock = e.target.checked; save(); if (!S.wakeLock) releaseWake(); };
+  $('#sUnits').onchange = e => { S.units = e.target.value; save(); tick(); };
+  $$('.route-item', v).forEach(el => {
+    const r = routeById(el.dataset.id);
+    $('.rName', el).onchange = e => { const n = e.target.value.trim().slice(0, 40); if (n) { r.name = n; save(); renderDrive(); } };
+    $$('.sw-btn', el).forEach(b => b.onclick = () => { r.color = b.dataset.c; save(); renderSettings(); drawDriveLayers(); renderDrive(); });
+    $('.rColor', el).onchange = e => { r.color = e.target.value.toUpperCase(); save(); renderSettings(); drawDriveLayers(); renderDrive(); };
+    $('.rArch', el).onchange = e => { r.archived = e.target.checked; save(); renderDrive(); };
+    $('.rDel', el).onclick = () => {
+      const n = db.trips.filter(t => t.routeId === r.id).length;
+      if (!confirm(`Delete route "${r.name}"?` + (n ? ` Its ${n} trips will be kept and set to "Decide later".` : ''))) return;
+      db.trips.forEach(t => { if (t.routeId === r.id) t.routeId = null; });
+      if (active && active.routeId === r.id) { active.routeId = null; persistActive(); }
+      db.routes = db.routes.filter(x => x.id !== r.id);
+      if (pendingRouteId === r.id) pendingRouteId = '';
+      save(); renderSettings(); renderDrive();
+    };
+  });
+  $('#sAddRoute').onclick = () => { if (promptNewRoute()) { renderSettings(); renderDrive(); } };
+  $$('.cp-item', v).forEach(el => {
+    const c = cpById(el.dataset.id);
+    $('.cName', el).onchange = e => { const n = e.target.value.trim().slice(0, 50); if (n) { c.name = n; save(); drawDriveLayers(); } };
+    $('.cRad', el).onchange = e => { const x = parseInt(e.target.value, 10); c.radius = x >= 30 && x <= 500 ? x : null; save(); };
+    $('.cMerge', el).onchange = e => {
+      const into = cpById(e.target.value); if (!into) return;
+      if (!confirm(`Merge "${c.name}" into "${into.name}"? All its hits will point to "${into.name}".`)) { e.target.value = ''; return; }
+      db.trips.forEach(t => t.hits.forEach(h => { if (h.cp === c.id) h.cp = into.id; }));
+      if (active) active.hits.forEach(h => { if (h.cp === c.id) h.cp = into.id; });
+      db.checkpoints = db.checkpoints.filter(x => x.id !== c.id); save(); persistActive(); renderSettings(); drawDriveLayers();
+    };
+    $('.cDel', el).onclick = () => {
+      const n = usedCount(c.id);
+      if (!confirm(`Delete checkpoint "${c.name}"?` + (n ? ` It's used in ${n} trips; those legs will merge with the neighbouring leg.` : ''))) return;
+      db.trips.forEach(t => { t.hits = t.hits.filter(h => h.cp !== c.id); });
+      if (active) { active.hits = active.hits.filter(h => h.cp !== c.id); persistActive(); }
+      db.checkpoints = db.checkpoints.filter(x => x.id !== c.id); save(); renderSettings(); drawDriveLayers();
+    };
+  });
+  $('#sCsv').onclick = exportCsv;
+  $('#sJson').onclick = () => shareOrDownload([{ name: `neon-commute-backup-${stamp()}.json`, text: JSON.stringify(Object.assign({ app: 'neon-commute', exportedAt: new Date().toISOString() }, db), null, 1), type: 'application/json' }]);
+  $('#sImport').onclick = () => $('#sImportFile').click();
+  $('#sImportFile').onchange = e => { const f = e.target.files[0]; if (f) importJson(f); e.target.value = ''; };
+  $('#sDemo').onclick = () => { loadDemo(); renderSettings(); };
+  const dd = $('#sDemoDel'); if (dd) dd.onclick = () => { removeDemo(); renderSettings(); };
+  $('#sWipe').onclick = () => {
+    if (!confirm('Delete ALL trips, routes, checkpoints and settings? This cannot be undone.')) return;
+    if (!confirm('Really delete everything? Consider exporting a JSON backup first.')) return;
+    lsSet(LS_DB, null); lsSet(LS_ACTIVE, null);
+    db = defaultDb(); active = null; pendingRouteId = db.settings.lastRouteId; releaseWake();
+    persist(); drawDriveLayers(); renderDrive(); renderSettings(); toast('All data deleted');
+  };
+}
+
+/* ================= export / import ================= */
+const pad = n => String(n).padStart(2, '0');
+const stamp = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const isoDate = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const isoTime = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const csvCell = v => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csv = rows => rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+function exportCsv() {
+  const trips = [...db.trips].sort((a, b) => a.startedAt - b.startedAt);
+  const tr = [['trip_id', 'date', 'start_time', 'end_time', 'weekday', 'route', 'total_seconds', 'total', 'legs', 'distance_mi', 'mpg', 'gas_price_per_gal', 'gallons', 'fuel_cost', 'demo', 'notes']];
+  const lg = [['trip_id', 'date', 'route', 'leg_no', 'from', 'to', 'segment_key', 'start_time', 'end_time', 'seconds', 'duration', 'auto_hit']];
+  trips.forEach(t => {
+    const f = fuel(t), legs = tripLegs(t), r = routeOf(t);
+    tr.push([t.id, isoDate(t.startedAt), isoTime(t.startedAt), isoTime(t.endedAt), DOW[new Date(t.startedAt).getDay()], r.name, Math.round(dur(t) / 1000), fmtDur(dur(t)), legs.length,
+      f.miles.toFixed(2), t.mpg != null ? t.mpg.toFixed(1) : '', f.price.toFixed(3), f.gallons != null ? f.gallons.toFixed(3) : '', f.cost != null ? f.cost.toFixed(2) : '', t.demo ? 'yes' : '', t.notes || '']);
+    legs.forEach((l, i) => {
+      const hit = t.hits.find(h => h.cp === l.to && h.t === l.end);
+      lg.push([t.id, isoDate(t.startedAt), r.name, i + 1, ptName(l.from), ptName(l.to), l.seg, isoTime(l.start), isoTime(l.end), Math.round(l.dur / 1000), fmtDur(l.dur), hit ? (hit.auto ? 'yes' : 'no') : '']);
+    });
+  });
+  shareOrDownload([
+    { name: `neon-commute-trips-${stamp()}.csv`, text: '\uFEFF' + csv(tr), type: 'text/csv' },
+    { name: `neon-commute-legs-${stamp()}.csv`, text: '\uFEFF' + csv(lg), type: 'text/csv' }
+  ]);
+}
+async function shareOrDownload(files) {
+  try {
+    const fs = files.map(f => new File([f.text], f.name, { type: f.type }));
+    if (navigator.canShare && navigator.canShare({ files: fs })) { await navigator.share({ files: fs, title: 'Neon Commute export' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  files.forEach((f, i) => setTimeout(() => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([f.text], { type: f.type })); a.download = f.name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }, i * 400));
+  toast('Exported ' + files.map(f => f.name).join(', '));
+}
+function importJson(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    let x;
+    try { x = JSON.parse(rd.result); } catch (e) { toast('That file isn\'t valid JSON', { warn: true }); return; }
+    if (!x || !Array.isArray(x.trips) || !Array.isArray(x.routes)) { toast('Not a Neon Commute backup', { warn: true }); return; }
+    const before = JSON.stringify(db);
+    const mergeById = (cur, inc) => { const m = new Map(cur.map(o => [o.id, o])); inc.forEach(o => { if (o && o.id) m.set(o.id, o); }); return [...m.values()]; };
+    db.routes = mergeById(db.routes, x.routes);
+    db.checkpoints = mergeById(db.checkpoints, x.checkpoints || []);
+    db.trips = mergeById(db.trips, x.trips.filter(t => t && t.startedAt && t.endedAt && Array.isArray(t.hits)).map(t => Object.assign({ path: [], distanceM: 0 }, t)));
+    if (x.settings && confirm('Also restore settings (gas price, toggles) from the backup?')) db.settings = Object.assign(db.settings, x.settings);
+    if (!persist()) { db = JSON.parse(before); return; }
+    toast(`Imported: ${x.trips.length} trips, ${x.routes.length} routes (merged by id)`);
+    drawDriveLayers(); renderDrive(); renderSettings();
+  };
+  rd.readAsText(file);
+}
+
+/* ================= demo data ================= */
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function removeDemo(notify = true) {
+  const n = db.trips.filter(t => t.demo).length;
+  db.trips = db.trips.filter(t => !t.demo);
+  const demoCp = new Set(db.checkpoints.filter(c => c.demo).map(c => c.id));
+  db.trips.forEach(t => { t.hits = t.hits.filter(h => !demoCp.has(h.cp)); });
+  db.checkpoints = db.checkpoints.filter(c => !c.demo);
+  const demoRoutes = new Set(db.routes.filter(r => r.demo).map(r => r.id));
+  db.routes = db.routes.filter(r => !r.demo || db.trips.some(t => t.routeId === r.id));
+  if (demoRoutes.has(pendingRouteId) && !routeById(pendingRouteId)) pendingRouteId = '';
+  persist(); drawDriveLayers(); renderDrive();
+  if (notify) toast(`Removed ${n} demo trips`);
+}
+function loadDemo() {
+  removeDemo(false);
+  const R = rng(20261110);
+  const gauss = () => { let u = 0, v = 0; while (!u) u = R(); while (!v) v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const ensureRoute = (id, name, color) => routeById(id) || (db.routes.push({ id, name: 'Demo ' + name, color, archived: false, createdAt: Date.now(), demo: true }), routeById(id));
+  const rA = ensureRoute('r_a', 'Freeway A', '#00E5FF'), rB = ensureRoute('r_b', 'Freeway B', '#FF2BD6'), rS = ensureRoute('r_s', 'Surface Streets', '#B6FF00');
+  const mk = (name, lat, lng) => { const c = { id: uid('c_'), name: 'Demo · ' + name, lat, lng, radius: null, demo: true, createdAt: Date.now() }; db.checkpoints.push(c); return c; };
+  const H = { lat: 34.0290, lng: -118.4110 }, W = { lat: 33.9210, lng: -118.3280 };
+  const cA = mk('405 on-ramp', 34.0185, -118.4262), cB = mk('10 East on-ramp', 34.0335, -118.3905),
+    cC = mk('Sepulveda turnoff', 34.0050, -118.4035), cX = mk('Rosecrans exit', 33.9025, -118.3685);
+  const plans = [
+    { route: rA, w: 0.4, mpg: [14.4, 1.0], legs: [{ to: cA, via: [], m: 4, sd: 0.7 }, { to: cX, via: [[33.985, -118.405], [33.945, -118.384]], m: 19.5, sd: 4.5 }, { to: null, via: [], m: 6, sd: 1 }] },
+    { route: rB, w: 0.3, mpg: [13.2, 1.0], legs: [{ to: cB, via: [], m: 6, sd: 1 }, { to: cX, via: [[34.031, -118.31], [33.97, -118.285], [33.925, -118.30]], m: 13.5, sd: 2.2 }, { to: null, via: [], m: 5.5, sd: 1.1 }] },
+    { route: rS, w: 0.3, mpg: [11.6, 0.8], legs: [{ to: cC, via: [], m: 5, sd: 0.8 }, { to: cX, via: [[33.97, -118.392], [33.935, -118.376]], m: 21.5, sd: 2.2 }, { to: null, via: [], m: 5, sd: 0.9 }] }
+  ];
+  let n = 0;
+  for (let d = 56; d >= 1; d--) {
+    const day = new Date(); day.setDate(day.getDate() - d);
+    if (day.getDay() === 0 || day.getDay() === 6 || R() < 0.12) continue;
+    const pick = R(); let acc = 0, plan = plans[0];
+    for (const p of plans) { acc += p.w; if (pick <= acc) { plan = p; break; } }
+    day.setHours(6, 10 + Math.floor(R() * 80), Math.floor(R() * 60), 0);
+    const start = day.getTime(); let t = start, cur = H;
+    const path = [[t, r5(H.lat), r5(H.lng)]], hits = []; let traffic = 0;
+    plan.legs.forEach(L1 => {
+      const z = gauss(); traffic += z * L1.sd;
+      const ms = Math.max(1.5, L1.m + z * L1.sd) * 60000;
+      const target = L1.to ? { lat: L1.to.lat, lng: L1.to.lng } : W;
+      const poly = [cur].concat(L1.via.map(v => ({ lat: v[0], lng: v[1] }))).concat([target]);
+      let len = 0; const segLen = []; for (let i = 1; i < poly.length; i++) { segLen.push(hav(poly[i - 1], poly[i])); len += segLen[segLen.length - 1]; }
+      const steps = Math.max(2, Math.round(len / 280));
+      for (let s = 1; s <= steps; s++) {
+        let want = len * s / steps, i = 0;
+        while (i < segLen.length - 1 && want > segLen[i]) { want -= segLen[i]; i++; }
+        const k = segLen[i] ? Math.min(1, want / segLen[i]) : 1;
+        const jit = s === steps ? 0 : 0.00012;
+        path.push([Math.round(t + ms * s / steps), r5(poly[i].lat + (poly[i + 1].lat - poly[i].lat) * k + (R() - 0.5) * jit), r5(poly[i].lng + (poly[i + 1].lng - poly[i].lng) * k + (R() - 0.5) * jit)]);
+      }
+      t += ms;
+      if (L1.to) hits.push({ cp: L1.to.id, t: Math.round(t), auto: R() < 0.3 });
+      cur = target;
+    });
+    const hasMpg = R() < 0.85;
+    const mpg = hasMpg ? Math.round(Math.min(30, Math.max(7, plan.mpg[0] - traffic * 0.12 + gauss() * plan.mpg[1] * 0.6)) * 10) / 10 : null;
+    db.trips.push({ id: uid('t_'), startedAt: start, endedAt: Math.round(t), routeId: plan.route.id, notes: 'Demo trip (made-up data)', distanceM: Math.round(pathDistance(path)), mpg,
+      gasPrice: Math.round((5.19 + R() * 0.2) * 100) / 100, hits, path, demo: true });
+    n++;
+  }
+  if (persist()) toast(`Loaded ${n} DEMO trips. Remove them anytime in Settings → Data.`);
+  drawDriveLayers(); renderDrive();
+}
+
+/* ================= tabs & init ================= */
+let currentTab = 'drive';
+function showTab(name) {
+  currentTab = name;
+  $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  if (name === 'drive') { document.documentElement.style.setProperty('--acc', curColor()); setTimeout(() => { if (driveMap) driveMap.invalidateSize(); }, 50); }
+  else document.documentElement.style.setProperty('--acc', '#00E5FF');
+  if (name === 'history') renderHistory();
+  if (name === 'compare') renderCompare();
+  if (name === 'settings') renderSettings();
+}
+function pwaSetup() {
+  if (!/^https?:$/.test(location.protocol)) return;    // only when hosted; keeps file:// clean
+  const add = (rel, href, extra = {}) => { const l = document.createElement('link'); l.rel = rel; l.href = href; Object.assign(l, extra); document.head.appendChild(l); };
+  add('manifest', 'manifest.json');
+  add('apple-touch-icon', 'apple-touch-icon.png');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* no sw.js next to this file: fine */ });
+}
+function init() {
+  $$('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+  $('#detailBack').onclick = closeDetail;
+  $('#gpsChip').onclick = () => { startWatch(); if (lastFix && driveMap) { follow = true; driveMap.setView([lastFix.lat, lastFix.lng], 15); } };
+  $('#recenter').onclick = () => { follow = true; $('#recenter').classList.remove('show'); if (lastFix && driveMap) driveMap.setView([lastFix.lat, lastFix.lng], Math.max(15, driveMap.getZoom())); };
+  $('#startStop').onclick = () => { if (!active) startTrip(); else if (active.stage === 'running') stopTrip(); else showStage(); };
+  $('#cpBtn').onclick = dropCheckpoint;
+  $('#routeSelect').onchange = e => {
+    let v = e.target.value;
+    if (v === '__new') { const nr = promptNewRoute(); v = nr ? nr.id : curRouteId(); }
+    if (active) { active.routeId = v || null; persistActive(); } else pendingRouteId = v;
+    drawDriveLayers(); renderDrive();
+  };
+  if (location.protocol === 'file:') {
+    const b = $('#fileBanner');
+    b.innerHTML = 'Opened as a local file. GPS and map tiles may be blocked here. Host it on HTTPS (GitHub/Cloudflare Pages) to use it in the car. <button class="linkbtn" type="button" id="fbX">Hide</button>';
+    b.hidden = false; $('#fbX').onclick = () => { b.hidden = true; };
+  }
+  if (!hasL() || !hasChart()) toast((!hasL() ? 'Map' : 'Chart') + ' library failed to load (offline?). Core timing still works.', { warn: true, ms: 7000 });
+  initDriveMap();
+  drawDriveLayers();
+  renderDrive();
+  setInterval(tick, 250);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { if (active && active.stage === 'running' && !wakeLock) requestWake(); tick(); }
+    else if (active) persistActive();
+  });
+  window.addEventListener('pagehide', () => { if (active) persistActive(); });
+  if (active) {                                  // resume after reload / crash
+    if (active.stage === 'running') { startWatch(); requestWake(); toast('Resumed trip in progress · ' + fmtDur(Date.now() - active.startedAt)); }
+    else showStage();
+  } else {
+    try { if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then(r => { if (r.state === 'granted') startWatch(); }).catch(() => { }); } catch (e) { }
+  }
+  pwaSetup();
+  // test/debug hook (harmless): lets you poke state from the console
+  window.NeonCommute = { get db() { return db; }, get active() { return active; }, loadDemo, removeDemo, showTab, onFix, fuel, tripLegs };
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+</script>
+</body>
+</html>
